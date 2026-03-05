@@ -5,9 +5,11 @@
 > **Security Notice**: This version includes enterprise-grade security features including data encryption, API validation, and comprehensive audit logging.
 
 **🔑 API Keys Summary:**
-- **Paper Trading**: ❌ No API keys needed - works immediately
-- **Testnet Trading**: ✅ API keys required (see section B5)
-- **Live Trading**: ✅ API keys required (see section B5)
+- **Paper Trading**: ❌ No API keys needed, but ✅ requires encryption key setup
+- **Testnet Trading**: ✅ API keys required + encryption key setup
+- **Live Trading**: ✅ API keys required + encryption key setup
+
+**⚠️ ALL PROFILES**: Require `.env` file with `BOT_ENCRYPTION_KEY` for state file encryption
 
 **Profiles supported (same codebase):**
 - `local_paper` — local paper trading (live market data, simulated fills)
@@ -60,19 +62,21 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# PAPER TRADING (works immediately)
+# IMPORTANT: Configure environment variables
+cp .env.template .env
+nano .env  # Add your API keys and encryption key
+
+# PAPER TRADING (works immediately after .env setup)
 python3 run_bot.py --profile local_paper
 
-# EXCHANGE TRADING (requires API keys - see section B5)
-# export PHEMEX_API_KEY="your_key"
-# export PHEMEX_API_SECRET="your_secret"
-# python3 run_bot.py --profile phemex_testnet
+# EXCHANGE TRADING (requires API keys in .env - see section B5)
+python3 run_bot.py --profile phemex_testnet
 ```
 
 **📋 Profile Summary:**
-- `local_paper` - Paper trading, **no API keys required**
-- `phemex_testnet` - Testnet trading, **API keys required**
-- `phemex_live` - Live trading, **API keys required**
+- `local_paper` - Paper trading, **no API keys required, but needs .env with encryption key**
+- `phemex_testnet` - Testnet trading, **API keys + encryption key required in .env**
+- `phemex_live` - Live trading, **API keys + encryption key required in .env**
 
 **🔑 For API key setup, see section B5: "API Keys Setup for VM/LXC"**
 
@@ -205,7 +209,7 @@ pip install ccxt pandas pandas_ta matplotlib cryptography
 
 ### B4) Security setup (NEW)
 ```bash
-# RECOMMENDED: Set custom encryption key for state files
+# REQUIRED: Set custom encryption key for state files
 export BOT_ENCRYPTION_KEY="$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")"
 
 # Verify encryption setup
@@ -216,55 +220,83 @@ print(f'Key length: {len(_get_encryption_key())} bytes')
 "
 ```
 
-### B5) API Keys Setup for VM/LXC (IMPORTANT)
+### B5) API Keys Setup for VM/LXC (CRITICAL)
 
-**For Paper Trading (No API Keys Needed):**
+**⚠️ IMPORTANT: All profiles now require environment variable setup!**
+
+The bot uses encrypted state files and requires environment variables to be loaded from `.env` file.
+
+#### Step 1: Setup Environment File (Required for ALL profiles)
 ```bash
-./run_bot.sh local_paper
-# Paper trading works immediately - no API keys required!
-```
-
-**For Testnet/Live Trading (API Keys Required):**
-
-#### Step 1: Get API Keys from Phemex
-1. Login to Phemex testnet/live
-2. Go to API Management → Create API Key
-3. Set permissions: Spot Trading, Read Balances, Read Trades
-4. Copy API Key and Secret
-
-#### Step 2: Configure Environment Variables
-
-**Option A: Environment File (Recommended)**
-```bash
-# Create environment file
+# Create environment file from template
 cp .env.template .env
 
 # Edit the file
 nano .env
 ```
 
-Add your keys to `.env`:
+#### Step 2: Add Required Variables to .env
+
+**For ALL Profiles (Required):**
 ```bash
-# For Testnet Trading
-PHEMEX_API_KEY=your_testnet_api_key_here
-PHEMEX_API_SECRET=your_testnet_api_secret_here
-ENABLE_TESTNET_TRADING=YES
-
-# For Live Trading (when ready)
-# PHEMEX_API_KEY=your_live_api_key_here  
-# PHEMEX_API_SECRET=your_live_api_secret_here
-# ENABLE_LIVE_TRADING=YES
-
-# RECOMMENDED: Set custom encryption key
-BOT_ENCRYPTION_KEY=your_custom_encryption_key_here
+# Generate secure encryption key (required for state file encryption)
+openssl rand -hex 32
+# Add the generated key:
+BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
 ```
 
-**Option B: Export Variables (Temporary)**
+**For Paper Trading Only:**
 ```bash
-# For current session only
-export PHEMEX_API_KEY="your_api_key_here"
-export PHEMEX_API_SECRET="your_api_secret_here"
-export ENABLE_TESTNET_TRADING=YES
+# Paper trading needs only encryption key
+BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
+ENABLE_TESTNET_TRADING=NO
+ENABLE_LIVE_TRADING=NO
+```
+
+**For Testnet Trading:**
+```bash
+# Testnet configuration
+PHEMEX_API_KEY=your_testnet_api_key_here
+PHEMEX_API_SECRET=your_testnet_api_secret_here
+BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
+ENABLE_TESTNET_TRADING=YES
+ENABLE_LIVE_TRADING=NO
+```
+
+**For Live Trading:**
+```bash
+# Live configuration
+PHEMEX_API_KEY=your_live_api_key_here
+PHEMEX_API_SECRET=your_live_api_secret_here
+BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
+ENABLE_TESTNET_TRADING=NO
+ENABLE_LIVE_TRADING=YES
+```
+
+#### Step 3: Secure the Environment File
+```bash
+# Set proper permissions
+chmod 600 .env
+```
+
+#### Step 4: Get API Keys (Testnet/Live Only)
+1. Login to Phemex testnet/live
+2. Go to API Management → Create API Key
+3. Set permissions: Spot Trading, Read Balances, Read Trades
+4. Copy API Key and Secret to .env file
+
+#### Step 5: Verify Setup
+```bash
+# Test environment loading
+python3 -c "
+import os
+from dotenv import load_dotenv
+load_dotenv()
+print('✅ Encryption Key:', 'SET' if os.getenv('BOT_ENCRYPTION_KEY') else 'NOT SET')
+print('✅ API Key:', 'SET' if os.getenv('PHEMEX_API_KEY') else 'NOT SET')
+print('✅ API Secret:', 'SET' if os.getenv('PHEMEX_API_SECRET') else 'NOT SET')
+"
+```
 
 # Then run the bot
 ./run_bot.sh phemex_testnet
@@ -496,7 +528,7 @@ export PHEMEX_API_SECRET="LIVE_SECRET"
 **🔒 LIVE TRADING SECURITY (NEW):**
 - **MANDATORY**: Use strong, randomly generated API keys (minimum 32 characters)
 - **MANDATORY**: Enable IP whitelisting in Phemex settings for your API keys
-- **RECOMMENDED**: Set custom encryption key for state files: `export BOT_ENCRYPTION_KEY="your_key_here"`
+- **REQUIRED**: Set custom encryption key for state files: `export BOT_ENCRYPTION_KEY="your_key_here"`
 - **RECOMMENDED**: Monitor `bot.log` for security events and API validation
 - **WARNING**: Bot will reject weak API keys and refuse to start
 
@@ -559,13 +591,13 @@ Example contents for testnet:
 PHEMEX_API_KEY=...
 PHEMEX_API_SECRET=...
 ENABLE_TESTNET_TRADING=YES
-BOT_ENCRYPTION_KEY=...  # RECOMMENDED: Custom encryption key
+BOT_ENCRYPTION_KEY=...  # REQUIRED: Custom encryption key
 ```
 
 **🔒 Security Best Practices:**
 - Set file permissions: `chmod 600 ~/bot/.env`
 - Use strong API keys (minimum 32 characters)
-- RECOMMENDED: Set custom encryption key for additional security
+- REQUIRED: Set custom encryption key for additional security
 - Monitor `~/bot/bot.log` for security events
 
 ### D4) Create a systemd service
@@ -621,7 +653,7 @@ sudo systemctl stop phemex-bot
 ### E1) Security & Safety Rules (NEW)
 - **ALWAYS** validate configuration before running: see section A7
 - **MANDATORY**: Use strong API keys (minimum 32 characters, no repeated patterns)
-- **RECOMMENDED**: Set custom encryption key for state files
+- **REQUIRED**: Set custom encryption key for state files
 - **MONITOR**: Check `bot.log` regularly for security events and errors
 - **BACKUP**: Keep secure backups of your encryption key and configuration
 
