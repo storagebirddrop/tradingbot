@@ -707,6 +707,72 @@ https://phemex.com/rewards-hub?referralCode=IX83P9&scene=referral
 
 ---
 
+## 🧪 Strategy Testing & Research
+
+The bot includes a comprehensive research and testing framework for strategy validation across multiple market conditions.
+
+### 📊 Quick Testing Commands
+
+```bash
+# Run comprehensive indicator research
+cd research
+python3 comprehensive_indicator_research.py
+
+# Test volume reversal strategy implementation
+python3 test_volume_reversal_implementation.py
+
+# Run deep validation of top strategies
+python3 deep_validation_top5.py
+
+# Validate enhanced indicators
+python3 test_enhanced_indicators.py
+```
+
+### 🔬 Research Phases Overview
+
+**Phase 1: Strategy Discovery**
+- `phase1a_alternative_strategies.py` - Test alternative strategy combinations
+- `phase1b_deep_validation.py` - Deep validation across market periods
+- `phase1c_final_strategy_selection.py` - Final strategy selection framework
+
+**Phase 2: Optimization & Risk**
+- `phase2_final_optimization.py` - Parameter optimization
+- `phase2_risk_optimization.py` - Risk management optimization
+- `phase2_volume_reversal_validation.py` - Volume reversal validation
+
+**Phase 3: System Integration**
+- `phase3_system_integration.py` - Complete system integration testing
+
+### 📈 Understanding Test Results
+
+**Key Metrics to Analyze:**
+- **Win Rate**: Percentage of profitable trades (target: >70%)
+- **Profit Factor**: Total profit / total loss (target: >3.0)
+- **Trade Frequency**: Signals per day (target: 1-3 per symbol)
+- **Max Drawdown**: Largest equity drop (target: <15%)
+
+**Market Period Coverage:**
+- COVID crash & recovery (2020-21)
+- Bull peak to bear (2022)
+- Post-bear recovery (2023)
+- Recent risk-off (2024)
+
+### 🎯 Current Recommended Strategy
+
+Based on comprehensive multi-period testing:
+- **Strategy**: `sma_rsi_combo`
+- **Win Rate**: 76.2% across all periods
+- **Profit Factor**: 6.39 (excellent risk-adjusted returns)
+- **Frequency**: 6.1% (~1 signal/week per symbol)
+
+### 📋 Detailed Research Documentation
+
+- `research/Comprehensive_Research_Summary.md` - Complete research results
+- `research/Market_Coverage_Analysis.md` - Market regime analysis
+- `research/Research_Completeness_Assessment.md` - Research methodology
+
+---
+
 ## 🎯 Deployment Summary
 
 ### **For Quick Start:**

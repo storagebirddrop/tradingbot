@@ -195,6 +195,31 @@ grep -i security bot.log | tail -10
 
 ---
 
+## 🧪 Test Your Strategies (Optional)
+
+Before deploying with real money, validate your strategies:
+
+```bash
+# Quick strategy validation (5-10 minutes)
+cd research
+python3 test_volume_reversal_implementation.py
+
+# Comprehensive research (30-60 minutes)
+python3 comprehensive_indicator_research.py
+
+# Deep validation (15-20 minutes)
+python3 deep_validation_top5.py
+```
+
+**📊 Current Recommended Strategy**: `sma_rsi_combo`
+- Win Rate: 76.2% across all market periods
+- Profit Factor: 6.39 (excellent risk-adjusted returns)
+- Frequency: ~1 signal/week per symbol
+
+**📖 Full Testing Guide**: See `TESTING_GUIDE.md` for comprehensive testing documentation.
+
+---
+
 ## 🎉 You're Ready!
 
 **Paper Trading**: `./run_bot.sh local_paper`  
