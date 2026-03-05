@@ -190,6 +190,14 @@ class PaperBroker(BaseBroker):
     def snapshot_equity(self, price_map: Dict[str,float]) -> None:
         append_csv(self.cfg["equity_log"], [now_iso(), self.cash, self.equity_usdt(price_map), self._exposure(price_map), "|".join(sorted(self._positions.keys()))])
 
+    def reconcile_fills_if_due(self, loop: int, price_map: Dict[str,float]) -> None:
+        # Paper trading doesn't need fill reconciliation
+        return
+
+    def sync_positions(self, price_map: Dict[str,float]) -> List[str]:
+        # Paper trading doesn't need position syncing with exchange
+        return []
+
 class ExchangeBroker(BaseBroker):
     def __init__(self, cfg: dict):
         super().__init__()
