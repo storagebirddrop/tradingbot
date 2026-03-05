@@ -11,9 +11,9 @@ cd tradingbot
 chmod +x install.sh
 ./install.sh
 
-# Configure environment
+# IMPORTANT: Configure environment variables (required for ALL profiles)
 cp .env.template .env
-nano .env
+nano .env  # Add BOT_ENCRYPTION_KEY (required) and API keys (for exchange profiles)
 
 # Run paper trading
 ./run_bot.sh local_paper
@@ -26,9 +26,9 @@ nano .env
 git clone <repository-url>
 cd tradingbot
 
-# Configure environment
+# IMPORTANT: Configure environment variables (required for ALL profiles)
 cp .env.template .env
-nano .env
+nano .env  # Add BOT_ENCRYPTION_KEY (required) and API keys (for exchange profiles)
 
 # Start paper trading
 docker-compose --profile paper up -d
@@ -42,27 +42,35 @@ docker-compose logs -f bot-paper
 ### For Paper Trading
 - ✅ Just the bot code
 - ✅ Internet connection
+- ✅ .env file with BOT_ENCRYPTION_KEY (required for state encryption)
 
 ### For Exchange Trading
 - ✅ Phemex API keys
 - ✅ Environment variables set
+- ✅ .env file with API keys + BOT_ENCRYPTION_KEY
 
 ## 🎯 Choose Your Profile
 
 ### 1. Paper Trading (Start Here)
 ```bash
+# IMPORTANT: Setup .env file first (required for ALL profiles)
+cp .env.template .env
+nano .env  # Add BOT_ENCRYPTION_KEY (generate with: openssl rand -hex 32)
+
 ./run_bot.sh local_paper
 ```
 - No API keys needed
 - Live market data
 - Simulated trades
 - Zero risk
+- Requires .env with BOT_ENCRYPTION_KEY
 
 ### 2. Testnet Trading
 ```bash
 # Create .env file with testnet credentials
 cp .env.template .env
 # Edit .env and add:
+# BOT_ENCRYPTION_KEY=your_generated_key (openssl rand -hex 32)
 # PHEMEX_API_KEY=your_testnet_key
 # PHEMEX_API_SECRET=your_testnet_secret
 # ENABLE_TESTNET_TRADING=YES
@@ -72,11 +80,13 @@ cp .env.template .env
 - Testnet API keys required
 - Real exchange simulation
 - Test stop orders
+- Requires .env with API keys + BOT_ENCRYPTION_KEY
 
 ### 3. Live Trading
 ```bash
 # Add live credentials to .env file
 # Edit .env and add:
+# BOT_ENCRYPTION_KEY=your_generated_key (openssl rand -hex 32)
 # PHEMEX_API_KEY=your_live_key
 # PHEMEX_API_SECRET=your_live_secret
 # ENABLE_LIVE_TRADING=YES
@@ -86,6 +96,7 @@ cp .env.template .env
 - Live API keys required
 - Real money trading
 - Full security features
+- Requires .env with API keys + BOT_ENCRYPTION_KEY
 
 ## 📊 Monitor Your Bot
 
