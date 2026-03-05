@@ -28,7 +28,28 @@ def compute_4h_indicators(df4h: pd.DataFrame) -> pd.DataFrame:
     macd = ta.macd(d["close"])
     d = pd.concat([d, macd], axis=1)
     d["adx"] = ta.adx(d["high"], d["low"], d["close"], length=14)["ADX_14"]
+    
+    # Add ImpulseMACD for adaptive strategy
+    d["impulse_macd"] = calculate_impulse_macd(d["close"])
+    
     return d.dropna().reset_index(drop=True)
+
+def calculate_impulse_macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
+    """Calculate ImpulseMACD signal for adaptive strategy"""
+    # Standard MACD
+    exp1 = close.ewm(span=fast).mean()
+    exp2 = close.ewm(span=slow).mean()
+    macd = exp1 - exp2
+    signal_line = macd.ewm(span=signal).mean()
+    histogram = macd - signal_line
+    
+    # Impulse component - rate of change of histogram
+    impulse = histogram.diff()
+    
+    # Impulse signal (positive momentum)
+    impulse_signal = (impulse > 0) & (histogram > 0)
+    
+    return impulse_signal.astype(int)
 
 def compute_daily_regime(df1d: pd.DataFrame, regime_ma_len: int, regime_slope_len: int, confirm_days: int) -> pd.DataFrame:
     d = df1d.copy()
@@ -52,15 +73,75 @@ def attach_regime_to_4h(df4h_ind: pd.DataFrame, df_regime: pd.DataFrame) -> pd.D
     out["risk_on"] = out["risk_on"].fillna(False)
     return out
 
-def entry_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+def classify_market_type(df: pd.DataFrame, lookback_days: int = 5) -> str:
+    """Classify market type based on price trend and regime"""
+    if len(df) < lookback_days:
+        return "unknown"
+    
+    # Calculate price trend over lookback period
+    price_change = (df["close"].iloc[-1] - df["close"].iloc[-lookback_days]) / df["close"].iloc[-lookback_days]
+    
+    # Get current regime
+    current_regime = df["risk_on"].iloc[-1] if "risk_on" in df.columns else False
+    
+    # Market classification logic
+    if current_regime and price_change > 0.02:  # Bull regime + positive trend
+        return "bull"
+    elif not current_regime and price_change < -0.02:  # Bear regime + negative trend
+        return "bear"
+    else:
+        return "transition"
+
+def sma_rsi_combo_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+    """Bear market optimized strategy: sma_rsi_combo"""
     return (
-        sig["close"] > sig["sma200_4h"]
+        sig["close"] < sig["sma200_4h"]  # Short entry (below SMA)
         and sig["adx"] > 25
-        and (
-            (sig["rsi"] < 40)
-            or (sig["MACDh_12_26_9"] > 0 and prev_sig["MACDh_12_26_9"] <= 0)
-        )
+        and sig["rsi"] > 70  # Overbought for short
+        and not sig.get("risk_on", True)  # Risk-off condition
     )
+
+def sma_rsi_impulse_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+    """Bull/Transition market optimized strategy: sma_rsi_impulse"""
+    return (
+        sig["close"] < sig["sma200_4h"]  # Short entry (below SMA)
+        and sig["adx"] > 25
+        and sig["rsi"] > 70  # Overbought for short
+        and sig.get("impulse_macd", 0) == 1  # ImpulseMACD confirmation
+        and not sig.get("risk_on", True)  # Risk-off condition
+    )
+
+def adaptive_short_entry_signal(sig: pd.Series, prev_sig: pd.Series, market_type: str = "bear") -> bool:
+    """Adaptive strategy selector based on market type"""
+    if market_type == "bull":
+        return sma_rsi_impulse_signal(sig, prev_sig)
+    elif market_type == "bear":
+        return sma_rsi_combo_signal(sig, prev_sig)
+    else:  # transition or unknown
+        return sma_rsi_impulse_signal(sig, prev_sig)  # Better in transitions
+
+def entry_signal(sig: pd.Series, prev_sig: pd.Series, adaptive: bool = False, market_type: str = "bear") -> bool:
+    """Entry signal with optional adaptive strategy"""
+    if adaptive:
+        return adaptive_short_entry_signal(sig, prev_sig, market_type)
+    else:
+        # Original long strategy (backward compatibility)
+        return (
+            sig["close"] > sig["sma200_4h"]
+            and sig["adx"] > 25
+            and (
+                (sig["rsi"] < 40)
+                or (sig["MACDh_12_26_9"] > 0 and prev_sig["MACDh_12_26_9"] <= 0)
+            )
+        )
+
+def short_entry_signal(sig: pd.Series, prev_sig: pd.Series, adaptive: bool = False, market_type: str = "bear") -> bool:
+    """Short entry signal with optional adaptive strategy"""
+    if adaptive:
+        return adaptive_short_entry_signal(sig, prev_sig, market_type)
+    else:
+        # Default to bear market optimized strategy (sma_rsi_combo)
+        return sma_rsi_combo_signal(sig, prev_sig)
 
 def exit_signal(sig: pd.Series) -> bool:
     return (

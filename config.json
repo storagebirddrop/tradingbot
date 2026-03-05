@@ -39,7 +39,17 @@
       "equity_log": "paper_equity.csv",
       "state_file": "paper_state.json",
       "runtime_state_file": "paper_runtime_state.json",
-      "equity_log_every_n_loops": 1
+      "equity_log_every_n_loops": 1,
+      "adaptive_strategy": {
+        "enabled": false,
+        "bear_strategy": "sma_rsi_combo",
+        "bull_strategy": "sma_rsi_impulse",
+        "transition_strategy": "sma_rsi_impulse",
+        "market_classification_window": 5,
+        "trend_strength_threshold": 0.02,
+        "strategy_logging": true,
+        "note": "Set enabled=true for adaptive mode in bull markets"
+      }
     },
     "phemex_testnet": {
       "mode": "exchange",
@@ -85,7 +95,17 @@
       "equity_log": "testnet_equity.csv",
       "state_file": "testnet_state.json",
       "runtime_state_file": "testnet_runtime_state.json",
-      "equity_log_every_n_loops": 1
+      "equity_log_every_n_loops": 1,
+      "adaptive_strategy": {
+        "enabled": false,
+        "bear_strategy": "sma_rsi_combo",
+        "bull_strategy": "sma_rsi_impulse",
+        "transition_strategy": "sma_rsi_impulse",
+        "market_classification_window": 5,
+        "trend_strength_threshold": 0.02,
+        "strategy_logging": true,
+        "note": "Set enabled=true for adaptive mode in bull markets"
+      }
     },
     "phemex_live": {
       "mode": "exchange",
@@ -131,7 +151,17 @@
       "equity_log": "live_equity.csv",
       "state_file": "live_state.json",
       "runtime_state_file": "live_runtime_state.json",
-      "equity_log_every_n_loops": 1
+      "equity_log_every_n_loops": 1,
+      "adaptive_strategy": {
+        "enabled": false,
+        "bear_strategy": "sma_rsi_combo",
+        "bull_strategy": "sma_rsi_impulse",
+        "transition_strategy": "sma_rsi_impulse",
+        "market_classification_window": 5,
+        "trend_strength_threshold": 0.02,
+        "strategy_logging": true,
+        "note": "Set enabled=true for adaptive mode in bull markets"
+      }
     }
   }
 }
