@@ -53,7 +53,7 @@ docker-compose logs -f bot-paper
 
 ### 1. Paper Trading (Start Here)
 ```bash
-# IMPORTANT: Setup .env file first (required for ALL profiles)
+# IMPORTANT: Set up .env file first (required for ALL profiles)
 cp .env.template .env
 nano .env  # Add BOT_ENCRYPTION_KEY (generate with: openssl rand -hex 32)
 
