@@ -1,7 +1,9 @@
-import os, csv, json, time
+import os, csv, json, time, hashlib
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from typing import Dict, Optional, List, Any, Tuple
+from cryptography.fernet import Fernet
+import base64
 
 import ccxt
 import pandas as pd
@@ -12,6 +14,51 @@ from reconcile import reconcile_fills, pnl_totals
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+def _get_encryption_key() -> bytes:
+    """Generate or retrieve encryption key from environment"""
+    import binascii
+    
+    key_env = os.environ.get("BOT_ENCRYPTION_KEY")
+    if key_env:
+        try:
+            return base64.urlsafe_b64decode(key_env.encode())
+        except (binascii.Error, TypeError) as e:
+            raise ValueError(f"Invalid BOT_ENCRYPTION_KEY format: {e}")
+    
+    # For development/testing only, generate a random key
+    # In production, BOT_ENCRYPTION_KEY must be set
+    import os as os_module
+    if os.environ.get("BOT_ENV") == "development" or os.environ.get("BOT_ENV") == "test":
+        return base64.urlsafe_b64encode(os_module.urandom(32))
+    
+    raise ValueError("BOT_ENCRYPTION_KEY environment variable must be set in production")
+
+def _encrypt_data(data: str) -> bytes:
+    """Encrypt sensitive data"""
+    try:
+        key = _get_encryption_key()
+        f = Fernet(key)
+        return f.encrypt(data.encode())
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Failed to get encryption key: {e}")
+    except Exception as e:
+        raise ValueError(f"Encryption failed: {e}")
+
+def _decrypt_data(encrypted_data: bytes) -> str:
+    """Decrypt sensitive data"""
+    if not isinstance(encrypted_data, bytes):
+        raise ValueError("Encrypted data must be bytes")
+    
+    try:
+        key = _get_encryption_key()
+        f = Fernet(key)
+        decrypted = f.decrypt(encrypted_data)
+        return decrypted.decode() if isinstance(decrypted, bytes) else decrypted
+    except (KeyError, TypeError) as e:
+        raise ValueError(f"Failed to get encryption key: {e}")
+    except Exception as e:
+        raise ValueError(f"Decryption failed: {e}")
+
 def ensure_csv(path: str, header: List[str]) -> None:
     if os.path.exists(path): return
     with open(path, "w", newline="") as f:
@@ -21,17 +68,61 @@ def append_csv(path: str, row: List[Any]) -> None:
     with open(path, "a", newline="") as f:
         csv.writer(f).writerow(row)
 
-def save_json(path: str, obj) -> None:
+def save_json(path: str, obj, encrypt: bool = False) -> None:
+    """Save JSON data with optional encryption for sensitive files"""
     tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(obj, f, indent=2, sort_keys=True)
-    os.replace(tmp, path)
+    data = json.dumps(obj, indent=2, sort_keys=True)
+    
+    if encrypt and ("state" in path or "runtime" in path):
+        # Encrypt sensitive state files
+        encrypted_data = _encrypt_data(data)
+        with open(tmp, "wb") as f:
+            f.write(encrypted_data)
+        # Mark as encrypted by adding .enc extension
+        encrypted_path = path + ".enc"
+        os.replace(tmp, encrypted_path)
+        
+        # Remove unencrypted file if it exists after successful encryption
+        if os.path.exists(path):
+            os.remove(path)
+    else:
+        # Regular unencrypted save
+        with open(tmp, "w") as f:
+            f.write(data)
+        os.replace(tmp, path)
 
 def load_json(path: str):
-    if not path or not os.path.exists(path):
+    """Load JSON data with automatic decryption support"""
+    if not path:
         return None
-    with open(path, "r") as f:
-        return json.load(f)
+    
+    # Prefer encrypted version if it exists
+    if not path.endswith('.enc'):
+        encrypted_path = path + '.enc'
+        if os.path.exists(encrypted_path):
+            path = encrypted_path
+        elif not os.path.exists(path):
+            return None
+    elif not os.path.exists(path):
+        return None
+    
+    try:
+        if path.endswith('.enc'):
+            # Encrypted file - read as bytes and decrypt
+            with open(path, "rb") as f:
+                encrypted_data = f.read()
+            decrypted_data = _decrypt_data(encrypted_data)
+            # Ensure decrypted data is string for json.loads
+            if isinstance(decrypted_data, bytes):
+                decrypted_data = decrypted_data.decode('utf-8')
+            return json.loads(decrypted_data)
+        else:
+            # Regular text file
+            with open(path, "r") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading {path}: {e}")
+        return None
 
 def fetch_ohlcv_df(exchange: ccxt.Exchange, symbol: str, timeframe: str, limit: int) -> pd.DataFrame:
     ohlcv = exchange.fetch_ohlcv(symbol, timeframe=timeframe, limit=limit)
@@ -118,7 +209,9 @@ class PaperBroker(BaseBroker):
             pass
 
     def persist(self):
-        save_json(self.cfg["state_file"], {"cash": self.cash, "positions": {s: asdict(p) for s,p in self._positions.items()}, "saved_at": now_iso()})
+        save_json(self.cfg["state_file"], 
+                 {"cash": self.cash, "positions": {s: asdict(p) for s,p in self._positions.items()}, "saved_at": now_iso()}, 
+                 encrypt=True)
 
     def get_prices(self, symbols: List[str]) -> Dict[str, float]:
         out = {}
@@ -198,6 +291,23 @@ class PaperBroker(BaseBroker):
         # Paper trading doesn't need position syncing with exchange
         return []
 
+def _validate_api_credentials(api_key: str, api_secret: str) -> None:
+    """Validate API key format and strength"""
+    import re
+    
+    if not api_key or len(api_key) < 32:
+        raise ValueError("API key too short (minimum 32 characters)")
+    
+    if not api_secret or len(api_secret) < 32:
+        raise ValueError("API secret too short (minimum 32 characters)")
+    
+    # Check for weak patterns
+    if api_key == api_key[0] * len(api_key):
+        raise ValueError("API key appears to be weak/repeated characters")
+    
+    if api_secret == api_secret[0] * len(api_secret):
+        raise ValueError("API secret appears to be weak/repeated characters")
+
 class ExchangeBroker(BaseBroker):
     def __init__(self, cfg: dict):
         super().__init__()
@@ -206,10 +316,29 @@ class ExchangeBroker(BaseBroker):
         self._last_prices: Dict[str, float] = {}
         ensure_csv(cfg["trade_log"], ["time_utc","symbol","event","qty","price_hint","trigger_price","reason","dry_run","order_id","order_json_trunc"])
         ensure_csv(cfg["equity_log"], ["time_utc","equity_est_usdt","realized_pnl_usdt","unrealized_pnl_est_usdt","open_positions","dry_run"])
-        api_key = os.environ.get("PHEMEX_API_KEY")
-        api_secret = os.environ.get("PHEMEX_API_SECRET")
+        
+        # Get API keys from environment variables with fallbacks
+        profile = cfg.get("profile", "").lower()
+        
+        if "testnet" in profile:
+            api_key = os.environ.get("PHEMEX_TESTNET_API_KEY") or os.environ.get("PHEMEX_API_KEY")
+            api_secret = os.environ.get("PHEMEX_TESTNET_API_SECRET") or os.environ.get("PHEMEX_API_SECRET")
+        elif "live" in profile:
+            api_key = os.environ.get("PHEMEX_LIVE_API_KEY") or os.environ.get("PHEMEX_API_KEY")
+            api_secret = os.environ.get("PHEMEX_LIVE_API_SECRET") or os.environ.get("PHEMEX_API_SECRET")
+        else:
+            api_key = os.environ.get("PHEMEX_API_KEY")
+            api_secret = os.environ.get("PHEMEX_API_SECRET")
+        
         if not api_key or not api_secret:
             raise SystemExit("Missing PHEMEX_API_KEY / PHEMEX_API_SECRET env vars.")
+        
+        # Validate API credentials
+        _validate_api_credentials(api_key, api_secret)
+        
+        # Log API key validation (without exposing the actual keys)
+        print(f"API credentials validated (key length: {len(api_key)}, secret length: {len(api_secret)})")
+        
         self.ex = ccxt.phemex({"apiKey": api_key, "secret": api_secret, "enableRateLimit": True, "options": {"defaultType":"spot"}})
         configure_phemex_env(self.ex, cfg.get("exchange_env","live"))
         self.ex.load_markets()

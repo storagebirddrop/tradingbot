@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Paper Trading Bot
+  bot-paper:
+    build: .
+    container_name: phemex-bot-paper
+    restart: unless-stopped
+    environment:
+      - PROFILE=local_paper
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile local_paper
+    profiles:
+      - paper
+
+  # Testnet Trading Bot
+  bot-testnet:
+    build: .
+    container_name: phemex-bot-testnet
+    restart: unless-stopped
+    environment:
+      - PROFILE=phemex_testnet
+      - PHEMEX_API_KEY=${PHEMEX_API_KEY}
+      - PHEMEX_API_SECRET=${PHEMEX_API_SECRET}
+      - ENABLE_TESTNET_TRADING=${ENABLE_TESTNET_TRADING:-NO}
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile phemex_testnet
+    profiles:
+      - testnet
+
+  # Live Trading Bot
+  bot-live:
+    build: .
+    container_name: phemex-bot-live
+    restart: unless-stopped
+    environment:
+      - PROFILE=phemex_live
+      - PHEMEX_API_KEY=${PHEMEX_API_KEY}
+      - PHEMEX_API_SECRET=${PHEMEX_API_SECRET}
+      - ENABLE_LIVE_TRADING=${ENABLE_LIVE_TRADING:-NO}
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile phemex_live
+    profiles:
+      - live
+
+networks:
+  default:
+    name: phemex-bot-network

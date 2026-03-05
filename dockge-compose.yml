@@ -1,0 +1,189 @@
+version: '3.8'
+
+services:
+  # Paper Trading Bot
+  bot-paper:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: phemex-bot-paper
+    restart: unless-stopped
+    environment:
+      - PROFILE=local_paper
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile local_paper
+    networks:
+      - phemex-bot-network
+    labels:
+      - traefik.enable=false
+      - dockge.project=phemex-bot
+
+  # Testnet Trading Bot (optional)
+  bot-testnet:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: phemex-bot-testnet
+    restart: unless-stopped
+    environment:
+      - PROFILE=phemex_testnet
+      - PHEMEX_TESTNET_API_KEY=${PHEMEX_TESTNET_API_KEY}
+      - PHEMEX_TESTNET_API_SECRET=${PHEMEX_TESTNET_API_SECRET}
+      - ENABLE_TESTNET_TRADING=${ENABLE_TESTNET_TRADING:-NO}
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile phemex_testnet
+    networks:
+      - phemex-bot-network
+    profiles:
+      - testnet
+    labels:
+      - traefik.enable=false
+      - dockge.project=phemex-bot
+
+  # Live Trading Bot (optional)
+  bot-live:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: phemex-bot-live
+    restart: unless-stopped
+    environment:
+      - PROFILE=phemex_live
+      - PHEMEX_LIVE_API_KEY=${PHEMEX_LIVE_API_KEY}
+      - PHEMEX_LIVE_API_SECRET=${PHEMEX_LIVE_API_SECRET}
+      - ENABLE_LIVE_TRADING=${ENABLE_LIVE_TRADING:-NO}
+      - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python3 run_bot.py --profile phemex_live
+    networks:
+      - phemex-bot-network
+    profiles:
+      - live
+    labels:
+      - traefik.enable=false
+      - dockge.project=phemex-bot
+
+  # Profit Checker Service (NEW)
+  profit-checker:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: phemex-bot-profit-checker
+    restart: "no"  # Run on-demand only
+    environment:
+      - PROFILE=local_paper
+    volumes:
+      - ./paper_equity.csv:/app/paper_equity.csv:ro
+      - ./paper_trades.csv:/app/paper_trades.csv:ro
+      - ./data:/app/data:ro
+    command: python3 -c "
+import pandas as pd
+import json
+from datetime import datetime, timezone
+
+print('=' * 50)
+print('📊 PHEMEX BOT - PAPER TRADING PROFITS')
+print('=' * 50)
+
+# Check equity
+try:
+    equity_df = pd.read_csv('paper_equity.csv')
+    if not equity_df.empty:
+        latest_equity = equity_df.iloc[-1]
+        print(f'💰 Current Equity: ${latest_equity[\"equity\"]:.2f}')
+        print(f'💵 Cash: ${latest_equity[\"cash\"]:.2f}')
+        print(f'📈 Exposure: ${latest_equity[\"exposure\"]:.2f}')
+        print(f'📊 Open Positions: {latest_equity[\"open_positions\"]}')
+        print(f'🕐 Last Update: {latest_equity[\"time_utc\"]}')
+        
+        # Calculate returns
+        if len(equity_df) > 1:
+            start_equity = equity_df.iloc[0]['equity']
+            current_equity = latest_equity['equity']
+            return_pct = ((current_equity - start_equity) / start_equity) * 100
+            print(f'📈 Total Return: {return_pct:+.2f}%')
+            
+            # Calculate max drawdown
+            equity_df['equity'] = pd.to_numeric(equity_df['equity'])
+            equity_df['peak'] = equity_df['equity'].cummax()
+            equity_df['drawdown'] = (equity_df['equity'] / equity_df['peak'] - 1) * 100
+            max_dd = equity_df['drawdown'].min()
+            print(f'📉 Max Drawdown: {max_dd:.2f}%')
+    else:
+        print('❌ No equity data available')
+except FileNotFoundError:
+    print('❌ Equity file not found')
+except Exception as e:
+    print(f'❌ Error reading equity data: {e}')
+
+print()
+
+# Check trades
+try:
+    trades_df = pd.read_csv('paper_trades.csv')
+    if not trades_df.empty:
+        print('📋 RECENT TRADES:')
+        print('-' * 30)
+        # Show last 5 trades
+        recent_trades = trades_df.tail(5)[['time_utc', 'symbol', 'side', 'qty', 'price', 'pnl']]
+        for _, trade in recent_trades.iterrows():
+            pnl_color = '🟢' if trade['pnl'] > 0 else '🔴' if trade['pnl'] < 0 else '⚪'
+            print(f'{pnl_color} {trade[\"time_utc\"]} | {trade[\"symbol\"]} | {trade[\"side\"]} | {trade[\"qty\"]} @ ${trade[\"price\"]:.2f} | PnL: ${trade[\"pnl\"]:+.4f}')
+        
+        # Summary statistics
+        sells = trades_df[trades_df['side'] == 'SELL']
+        if not sells.empty:
+            total_pnl = sells['pnl'].sum()
+            win_rate = (sells['pnl'] > 0).mean() * 100
+            num_trades = len(sells)
+            
+            print()
+            print('📊 TRADING SUMMARY:')
+            print('-' * 30)
+            print(f'📈 Total Trades: {num_trades}')
+            print(f'🎯 Win Rate: {win_rate:.1f}%')
+            print(f'💰 Realized PnL: ${total_pnl:+.6f}')
+            
+            if num_trades > 0:
+                avg_win = sells[sells['pnl'] > 0]['pnl'].mean() if len(sells[sells['pnl'] > 0]) > 0 else 0
+                avg_loss = sells[sells['pnl'] < 0]['pnl'].mean() if len(sells[sells['pnl'] < 0]) > 0 else 0
+                print(f'📊 Avg Win: ${avg_win:+.4f}')
+                print(f'📉 Avg Loss: ${avg_loss:+.4f}')
+                print(f'🎯 Profit Factor: {abs(avg_win/avg_loss):.2f}' if avg_loss != 0 else '🎯 Profit Factor: N/A')
+    else:
+        print('❌ No trades data available')
+except FileNotFoundError:
+    print('❌ Trades file not found')
+except Exception as e:
+    print(f'❌ Error reading trades data: {e}')
+
+print()
+print('=' * 50)
+print('✅ Profit check completed!')
+print('=' * 50)
+"
+    networks:
+      - phemex-bot-network
+    labels:
+      - traefik.enable=false
+      - dockge.project=phemex-bot
+
+volumes:
+  data:
+    driver: local
+  logs:
+    driver: local
+
+networks:
+  phemex-bot-network:
+    driver: bridge
+    labels:
+      - dockge.project=phemex-bot

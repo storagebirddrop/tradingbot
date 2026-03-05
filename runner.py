@@ -1,4 +1,4 @@
-import time, json, os
+import time, json, os, logging
 from collections import deque
 from datetime import datetime, timezone
 from typing import Dict, Optional
@@ -6,30 +6,57 @@ from typing import Dict, Optional
 from strategy import timeframe_seconds, entry_signal, exit_signal
 from brokers import get_latest_signal_rows, get_current_tf_open_ts
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('bot.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 def utc_day_key() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 def load_runtime_state(path: str) -> dict:
     if not path or not os.path.exists(path):
+        logger.info(f"Runtime state file not found: {path}, using empty state")
         return {}
     try:
         with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
+            state = json.load(f)
+            logger.info(f"Loaded runtime state from {path}")
+            return state
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in runtime state file {path}: {e}")
+        return {}
+    except Exception as e:
+        logger.error(f"Failed to load runtime state from {path}: {e}")
         return {}
 
 def save_runtime_state(path: str, state: dict) -> None:
     if not path:
+        logger.warning("Cannot save runtime state: no path provided")
         return
-    tmp = path + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump(state, f, indent=2, sort_keys=True)
-    os.replace(tmp, path)
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(state, f, indent=2, sort_keys=True)
+        os.replace(tmp, path)
+        logger.debug(f"Saved runtime state to {path}")
+    except Exception as e:
+        logger.error(f"Failed to save runtime state to {path}: {e}")
+
+# Constants
+COOLDOWN_RESET_VALUE = -10**18  # Far past timestamp to reset cooldowns
 
 def run_loop(cfg: dict, broker, market_exchange):
+    logger.info(f"Starting bot loop with {len(cfg['symbols'])} symbols")
     tf_sec = timeframe_seconds(cfg["signal_timeframe"])
     last_tf_open: Dict[str, Optional[int]] = {s: None for s in cfg["symbols"]}
-    cooldown_until: Dict[str, int] = {s: -10**18 for s in cfg["symbols"]}
+    cooldown_until: Dict[str, int] = {s: COOLDOWN_RESET_VALUE for s in cfg["symbols"]}
 
     runtime_path = cfg.get("runtime_state_file", "")
     rt = load_runtime_state(runtime_path)
@@ -93,8 +120,11 @@ def run_loop(cfg: dict, broker, market_exchange):
         eq_now = None
         try:
             eq_now = broker.equity_usdt(price_map)
-        except Exception:
-            pass
+            if eq_now is not None:
+                logger.debug(f"Current equity: {eq_now:.2f} USDT")
+        except Exception as e:
+            logger.error(f"Failed to fetch equity: {e}")
+            # Continue with None equity - will be handled gracefully
 
         current_day = utc_day_key()
         if rt.get("day") != current_day:

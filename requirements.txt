@@ -1,0 +1,5 @@
+ccxt==4.2.99
+pandas>=2.0.0
+pandas-ta>=0.3.14b0
+matplotlib>=3.5.0
+cryptography>=41.0.0
