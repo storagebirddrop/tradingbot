@@ -8,8 +8,7 @@
         "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "LINK/USDT",
-        "XLM/USDT"
+        "XRP/USDT"
       ],
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -49,6 +48,19 @@
         "trend_strength_threshold": 0.02,
         "strategy_logging": true,
         "note": "Set enabled=true for adaptive mode in bull markets"
+      },
+      "volume_reversal_strategy": {
+        "enabled": true,
+        "stop_loss_pct": 0.015,
+        "take_profit_pct": 0.04,
+        "max_holding_periods": 20,
+        "volume_ratio_threshold": 2.0,
+        "mfi_threshold": 30,
+        "cmf_threshold": -0.1,
+        "rsi_threshold": 35,
+        "risk_per_trade": 0.01,
+        "max_portfolio_exposure": 0.25,
+        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
       }
     },
     "phemex_testnet": {
@@ -63,8 +75,7 @@
         "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "LINK/USDT",
-        "XLM/USDT"
+        "XRP/USDT"
       ],
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -105,6 +116,19 @@
         "trend_strength_threshold": 0.02,
         "strategy_logging": true,
         "note": "Set enabled=true for adaptive mode in bull markets"
+      },
+      "volume_reversal_strategy": {
+        "enabled": true,
+        "stop_loss_pct": 0.015,
+        "take_profit_pct": 0.04,
+        "max_holding_periods": 20,
+        "volume_ratio_threshold": 2.0,
+        "mfi_threshold": 30,
+        "cmf_threshold": -0.1,
+        "rsi_threshold": 35,
+        "risk_per_trade": 0.01,
+        "max_portfolio_exposure": 0.25,
+        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
       }
     },
     "phemex_live": {
@@ -119,8 +143,7 @@
         "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "LINK/USDT",
-        "XLM/USDT"
+        "XRP/USDT"
       ],
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -161,6 +184,19 @@
         "trend_strength_threshold": 0.02,
         "strategy_logging": true,
         "note": "Set enabled=true for adaptive mode in bull markets"
+      },
+      "volume_reversal_strategy": {
+        "enabled": false,
+        "stop_loss_pct": 0.015,
+        "take_profit_pct": 0.04,
+        "max_holding_periods": 20,
+        "volume_ratio_threshold": 2.0,
+        "mfi_threshold": 30,
+        "cmf_threshold": -0.1,
+        "rsi_threshold": 35,
+        "risk_per_trade": 0.01,
+        "max_portfolio_exposure": 0.25,
+        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
       }
     }
   }
