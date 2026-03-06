@@ -12,8 +12,8 @@ _cached_encryption_key = None
 import ccxt
 import pandas as pd
 
-from strategy import drop_incomplete_last_candle, compute_4h_indicators, compute_daily_regime, attach_regime_to_4h
-# from scripts.reconcile import reconcile_fills, pnl_totals  # Temporarily commented for testing
+from .strategy import drop_incomplete_last_candle, compute_4h_indicators, compute_daily_regime, attach_regime_to_4h
+from ..scripts.reconcile import reconcile_fills, pnl_totals
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
