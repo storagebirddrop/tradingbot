@@ -55,14 +55,16 @@ def load_config(profile: str) -> Dict[str, Any]:
     except json.JSONDecodeError as e:
         raise ValueError(f"Invalid JSON in config.json: {e}")
 
-def create_broker(profile_config: Dict[str, Any]) -> Any:
+def create_broker(profile_config: Dict[str, Any]):
     """Create appropriate broker based on profile"""
     mode = profile_config.get('mode', 'paper')
-    
+
     if mode == 'paper':
-        return PaperBroker(profile_config)
+        market_exchange = ccxt.phemex({"enableRateLimit": True})
+        return PaperBroker(profile_config, market_exchange), market_exchange
     else:
-        return ExchangeBroker(profile_config)
+        broker = ExchangeBroker(profile_config)
+        return broker, broker.ex
 
 def main():
     """Main entry point"""
@@ -89,15 +91,15 @@ def main():
             return
         
         # Create broker
-        broker = create_broker(config)
-        
+        broker, market_exchange = create_broker(config)
+
         # Run trading loop
         print(f"🚀 Starting Phemex Momentum Trading Bot")
         print(f"📊 Profile: {args.profile}")
         print(f"📈 Strategy: {strategy_name}")
         print(f"🔧 Mode: {config.get('mode', 'paper')}")
-        
-        run_loop(broker, config)
+
+        run_loop(config, broker, market_exchange)
         
     except Exception as e:
         print(f"❌ Error: {e}")
