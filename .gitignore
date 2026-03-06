@@ -62,7 +62,7 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
-# Data files
+# Data files (excluding config)
 *.csv
 *.json
 !config.json
@@ -70,3 +70,18 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+
+# Claude
+.claude/
+.claude.json
+
+# Archive
+archive/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*~

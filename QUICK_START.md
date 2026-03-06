@@ -1,231 +1,207 @@
-# ⚡ Phemex Trading Bot - Quick Start Guide
+# ⚡ Phemex Momentum Trading Bot - Quick Start
 
 ## 🚀 One-Command Setup
 
-### Option 1: Fresh VM/LXC Container (Recommended)
-
+### Option 1: Automated Installation (Recommended)
 ```bash
 # Clone and install
-git clone <repository-url>
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 chmod +x install.sh
 ./install.sh
 
-# IMPORTANT: Configure environment variables (required for ALL profiles)
+# Configure environment (REQUIRED for ALL profiles)
 cp .env.template .env
-nano .env  # Add BOT_ENCRYPTION_KEY (required) and API keys (for exchange profiles)
+nano .env  # Add BOT_ENCRYPTION_KEY (required) + API keys (exchange profiles)
 
-# Run paper trading
+# Start paper trading (no API keys needed)
 ./run_bot.sh local_paper
 ```
 
 ### Option 2: Docker (Easiest)
-
 ```bash
 # Clone and setup
-git clone <repository-url>
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 
-# IMPORTANT: Configure environment variables (required for ALL profiles)
+# Configure environment (REQUIRED)
 cp .env.template .env
-nano .env  # Add BOT_ENCRYPTION_KEY (required) and API keys (for exchange profiles)
+nano .env  # Add BOT_ENCRYPTION_KEY + API keys
 
+# Run with Docker
+docker-compose --profile paper up -d
+docker-compose logs -f bot-paper
+```
+
+### Option 3: Manual Setup
+```bash
+# Clone and setup
+git clone https://github.com/storagebirddrop/tradingbot.git
+cd tradingbot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Configure environment (REQUIRED)
+cp .env.template .env
+nano .env  # Add BOT_ENCRYPTION_KEY + API keys
+
+# Run paper trading
+python3 run_bot.py --profile local_paper
+```
+
+---
+
+## 🔑 Environment Setup (.env)
+
+### **Required for ALL Profiles**
+```bash
+# Generate encryption key (run this command)
+python3 -c "
+import base64, os
+print(f'BOT_ENCRYPTION_KEY={base64.urlsafe_b64encode(os.urandom(32)).decode()}')
+"
+
+# Add to .env file
+BOT_ENCRYPTION_KEY=your_generated_key_here
+```
+
+### **Exchange Trading Only**
+```bash
+# Add to .env for testnet/live trading
+PHEMEX_API_KEY=your_api_key_here
+PHEMEX_API_SECRET=your_api_secret_here
+```
+
+---
+
+## 📊 Trading Profiles
+
+| Profile | Command | API Keys | Use Case |
+|---------|----------|-----------|----------|
+| **Paper Trading** | `./run_bot.sh local_paper` | ❌ No | Strategy testing |
+| **Testnet Trading** | `./run_bot.sh phemex_testnet` | ✅ Yes | Exchange testing |
+| **Live Trading** | `./run_bot.sh phemex_live` | ✅ Yes | Production |
+
+---
+
+## 🎯 Strategy Overview
+
+**Current Strategy**: Optimized Momentum (Multi-Indicator)
+
+**Key Features**:
+- 6 technical indicators (EMA SuperTrend, RSI, MACD, Volume, Momentum, MTF)
+- 3/6 signals required for entry (flexible but quality-focused)
+- 2x leverage capability
+- Dynamic position sizing (0.5-1.5x based on signal strength)
+- ATR-based stop losses
+- Signal reversal exits (73% of exits)
+
+**Performance**:
+- **Projected Annual Return**: 234.6%
+- **Win Rate**: 39% (typical for momentum)
+- **Trade Frequency**: 474 trades/month
+- **Max Drawdown**: 24.3%
+
+---
+
+## 🛡️ Risk Management
+
+**Conservative Parameters**:
+- **Risk per Trade**: 1% (4% effective with 2x leverage)
+- **Max Positions**: 2 concurrent
+- **Total Exposure**: 25% maximum
+- **Stop Loss**: 3% minimum, ATR-based
+- **Take Profit**: 15%
+- **Max Holding**: 24 hours
+
+---
+
+## 📈 Monitoring Commands
+
+```bash
+# Check bot status
+./status.sh
+
+# Health check
+python3 healthcheck.py --profile local_paper
+
+# View live logs
+tail -f bot.log
+
+# Performance reports
+python3 equity_report.py --equity-log paper_equity.csv --starting 50
+python3 trades_report.py --trades-log paper_trades.csv
+```
+
+---
+
+## 🐳 Docker Commands
+
+```bash
 # Start paper trading
 docker-compose --profile paper up -d
 
 # View logs
 docker-compose logs -f bot-paper
+
+# Stop bot
+docker-compose down
+
+# Rebuild
+docker-compose build --no-cache
 ```
-
-## 📋 What You Need
-
-### For Paper Trading
-- ✅ Just the bot code
-- ✅ Internet connection
-- ✅ .env file with BOT_ENCRYPTION_KEY (required for state encryption)
-
-### For Exchange Trading
-- ✅ Phemex API keys
-- ✅ Environment variables set
-- ✅ .env file with API keys + BOT_ENCRYPTION_KEY
-
-## 🎯 Choose Your Profile
-
-### 1. Paper Trading (Start Here)
-```bash
-# IMPORTANT: Set up .env file first (required for ALL profiles)
-cp .env.template .env
-nano .env  # Add BOT_ENCRYPTION_KEY (generate with: openssl rand -hex 32)
-
-./run_bot.sh local_paper
-```
-- No API keys needed
-- Live market data
-- Simulated trades
-- Zero risk
-- Requires .env with BOT_ENCRYPTION_KEY
-
-### 2. Testnet Trading
-```bash
-# Create .env file with testnet credentials
-cp .env.template .env
-# Edit .env and add:
-# BOT_ENCRYPTION_KEY=your_generated_key (openssl rand -hex 32)
-# PHEMEX_API_KEY=your_testnet_key
-# PHEMEX_API_SECRET=your_testnet_secret
-# ENABLE_TESTNET_TRADING=YES
-
-./run_bot.sh phemex_testnet
-```
-- Testnet API keys required
-- Real exchange simulation
-- Test stop orders
-- Requires .env with API keys + BOT_ENCRYPTION_KEY
-
-### 3. Live Trading
-```bash
-# Add live credentials to .env file
-# Edit .env and add:
-# BOT_ENCRYPTION_KEY=your_generated_key (openssl rand -hex 32)
-# PHEMEX_API_KEY=your_live_key
-# PHEMEX_API_SECRET=your_live_secret
-# ENABLE_LIVE_TRADING=YES
-
-./run_bot.sh phemex_live
-```
-- Live API keys required
-- Real money trading
-- Full security features
-- Requires .env with API keys + BOT_ENCRYPTION_KEY
-
-## 📊 Monitor Your Bot
-
-### Check Status
-```bash
-./status.sh                    # Quick status overview
-tail -f bot.log                # Real-time logs
-```
-
-### Health Check
-```bash
-./health_check.sh local_paper  # Verify bot health
-```
-
-### View Performance
-```bash
-python3 equity_report.py --equity-log paper_equity.csv --starting 50
-python3 trades_report.py --trades-log paper_trades.csv
-```
-
-## 🔧 Common Commands
-
-```bash
-# Stop the bot
-Ctrl+C  # or kill the process
-
-# Restart with different profile
-./run_bot.sh phemex_testnet
-
-# Check what's running
-./status.sh
-
-# Fix issues
-./health_check.sh [profile]
-```
-
-## 🚨 Important Safety Rules
-
-1. **ALWAYS start with paper trading**
-2. **NEVER use live API keys in paper trading**
-3. **ALWAYS validate configuration first**
-4. **MONITOR logs regularly**
-5. **BACKUP your encryption key**
-
-## 📱 What to Expect
-
-### First Run (Paper Trading)
-```
-[INFO] Starting bot loop with 5 symbols
-[INFO] Loaded runtime state from paper_runtime_state.json
-[INFO] Current equity: 50.00 USDT
-```
-
-### Files Created
-- `bot.log` - Activity logs
-- `paper_equity.csv` - Equity tracking
-- `paper_trades.csv` - Trade records
-- `paper_state.json.enc` - Encrypted state
-
-### Normal Operation
-- Bot polls every 20 seconds
-- No trades initially (normal)
-- Logs show market analysis
-- Equity snapshots saved regularly
-
-## 🆘 Need Help?
-
-### Quick Fixes
-```bash
-# Permission issues
-chmod +x *.sh
-
-# Dependency issues
-./install.sh  # Reinstall
-
-# Configuration issues
-./health_check.sh local_paper  # Validates configuration
-```
-
-### Check Logs
-```bash
-# Recent errors
-grep -i error bot.log | tail -10
-
-# API issues
-grep -i api bot.log | tail -10
-
-# Security events
-grep -i security bot.log | tail -10
-```
-
-### Still Stuck?
-1. Check `DEPLOYMENT.md` for detailed setup
-2. Review `SECURITY_IMPROVEMENTS.md` for security info
-3. Run `./health_check.sh [profile]` for diagnostics
 
 ---
 
-## 🧪 Test Your Strategies (Optional)
+## 🚨 Troubleshooting
 
-Before deploying with real money, validate your strategies:
+### **Common Issues**
 
+**"Encryption key required" error**:
 ```bash
-# Quick strategy validation (5-10 minutes)
-cd research
-python3 test_volume_reversal_implementation.py
-
-# Comprehensive research (30-60 minutes)
-python3 comprehensive_indicator_research.py
-
-# Deep validation (15-20 minutes)
-python3 deep_validation_top5.py
+# Generate and add key to .env
+python3 -c "
+import base64, os
+print(f'BOT_ENCRYPTION_KEY={base64.urlsafe_b64encode(os.urandom(32)).decode()}')
+"
 ```
 
-**📊 Current Recommended Strategy**: `sma_rsi_combo`
-- Win Rate: 76.2% across all market periods
-- Profit Factor: 6.39 (excellent risk-adjusted returns)
-- Frequency: ~1 signal/week per symbol
+**"No trades generated"**:
+- Check market data availability
+- Verify strategy parameters
+- Ensure volume thresholds are achievable
 
-**📖 Full Testing Guide**: See `TESTING_GUIDE.md` for comprehensive testing documentation.
+**High drawdown**:
+- Reduce risk_per_trade in config.json
+- Enable risk_off_exits
+- Check market volatility
+
+### **Debug Mode**
+```bash
+export LOG_LEVEL=DEBUG
+python3 run_bot.py --profile local_paper
+```
 
 ---
 
-## 🎉 You're Ready!
+## 📞 Quick Help
 
-**Paper Trading**: `./run_bot.sh local_paper`  
-**Testnet Trading**: `./run_bot.sh phemex_testnet`  
-**Live Trading**: `./run_bot.sh phemex_live`  
+1. **Documentation**: `README.md` (complete guide)
+2. **Deployment**: `DEPLOYMENT.md` (detailed setup)
+3. **Security**: `SECURITY_IMPROVEMENTS.md`
+4. **Health Check**: `python3 healthcheck.py`
 
-Start with paper trading, verify everything works, then move to testnet before considering live trading.
+---
 
-**Happy Trading! 🚀**
+## 🎯 Next Steps
+
+1. **Paper Trade First**: Validate strategy with paper trading
+2. **Monitor Performance**: Check win rate and drawdown
+3. **Adjust Parameters**: Optimize for your risk tolerance
+4. **Testnet Testing**: Exchange testing with simulated funds
+5. **Go Live**: Start with small position sizes
+
+---
+
+**🚀 Ready?** Run the installation command above and start paper trading in minutes!

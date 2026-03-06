@@ -33,7 +33,12 @@ RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
 # Copy application code
-COPY . .
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY config.json .
+
+# Create data and logs directories
+RUN mkdir -p /app/data /app/logs
 
 # Change ownership to non-root user
 RUN chown -R botuser:botuser /app
@@ -43,7 +48,7 @@ USER botuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 healthcheck.py --profile ${PROFILE:-local_paper} || exit 1
+    CMD python3 src/healthcheck.py --profile ${PROFILE:-local_paper} || exit 1
 
 # Default command
-CMD ["python3", "run_bot.py", "--profile", "local_paper"]
+CMD ["python3", "src/run_bot.py", "--profile", "local_paper"]
