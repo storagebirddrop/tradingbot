@@ -5,22 +5,30 @@
       "exchange_env": "live",
       "dry_run": true,
       "symbols": [
-        "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "XRP/USDT"
+        "TRX/USDT",
+        "ADA/USDT",
+        "VTHO/USDT",
+        "BAT/USDT",
+        "LTC/USDT",
+        "RUNE/USDT"
       ],
+      "symbol_strategy": {
+        "VTHO/USDT": "vwap_band_bounce"
+      },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
       "starting_cash": 50.0,
       "fee_rate": 0.001,
       "slippage_bps": 2,
+      "strategy": "obv_breakout",
       "risk_per_trade": 0.01,
       "stop_pct": 0.02,
       "trail_pct": 0.02,
       "max_positions": 2,
-      "max_position_pct": 0.3,
-      "max_total_exposure_pct": 0.7,
+      "max_position_pct": 0.15,
+      "max_total_exposure_pct": 0.25,
       "regime_ma_len": 200,
       "regime_slope_len": 5,
       "regime_confirm_days": 2,
@@ -39,28 +47,34 @@
       "state_file": "paper_state.json",
       "runtime_state_file": "paper_runtime_state.json",
       "equity_log_every_n_loops": 1,
-      "adaptive_strategy": {
-        "enabled": false,
-        "bear_strategy": "sma_rsi_combo",
-        "bull_strategy": "sma_rsi_impulse",
-        "transition_strategy": "sma_rsi_impulse",
-        "market_classification_window": 5,
-        "trend_strength_threshold": 0.02,
-        "strategy_logging": true,
-        "note": "Set enabled=true for adaptive mode in bull markets"
-      },
-      "volume_reversal_strategy": {
-        "enabled": true,
-        "stop_loss_pct": 0.015,
-        "take_profit_pct": 0.04,
+      "rsi_momentum_pullback": {
+        "ignore_regime_filter": true,
+        "adx_threshold": 20,
+        "rsi_lower": 25,
+        "rsi_upper": 45,
+        "rsi_exit": 68,
+        "stop_loss_pct": 0.03,
+        "take_profit_pct": 0.08,
         "max_holding_periods": 20,
-        "volume_ratio_threshold": 2.0,
-        "mfi_threshold": 30,
-        "cmf_threshold": -0.1,
-        "rsi_threshold": 35,
-        "risk_per_trade": 0.01,
-        "max_portfolio_exposure": 0.25,
-        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
+        "risk_per_trade": 0.03
+      },
+      "vwap_band_bounce": {
+        "ignore_regime_filter": false,
+        "rsi_threshold": 40,
+        "mfi_threshold": 35,
+        "stop_loss_pct": 0.035,
+        "take_profit_pct": 0.06,
+        "max_holding_periods": 12,
+        "risk_per_trade": 0.03
+      },
+      "obv_breakout": {
+        "ignore_regime_filter": false,
+        "volume_ratio_threshold": 1.3,
+        "stop_loss_pct": 0.04,
+        "take_profit_pct": 0.10,
+        "max_holding_periods": 30,
+        "trail_pct": 0.04,
+        "risk_per_trade": 0.03
       }
     },
     "phemex_testnet": {
@@ -72,24 +86,32 @@
       "trigger_price_type": "last",
       "stop_confirm_timeout_sec": 20,
       "symbols": [
-        "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "XRP/USDT"
+        "TRX/USDT",
+        "ADA/USDT",
+        "VTHO/USDT",
+        "BAT/USDT",
+        "LTC/USDT",
+        "RUNE/USDT"
       ],
+      "symbol_strategy": {
+        "VTHO/USDT": "vwap_band_bounce"
+      },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
       "fee_rate_hint": 0.001,
-      "risk_per_trade": 0.01,
-      "stop_pct": 0.02,
-      "trail_pct": 0.02,
-      "max_positions": 2,
+      "strategy": "obv_breakout",
+      "risk_per_trade": 0.03,
+      "stop_pct": 0.04,
+      "trail_pct": 0.04,
+      "max_positions": 5,
       "max_position_pct": 0.3,
       "max_total_exposure_pct": 0.7,
       "regime_ma_len": 200,
       "regime_slope_len": 5,
       "regime_confirm_days": 2,
-      "risk_off_exits": true,
+      "risk_off_exits": false,
       "cooldown_candles": 1,
       "daily_loss_limit_pct": 3.0,
       "api_error_window_sec": 120,
@@ -107,28 +129,34 @@
       "state_file": "testnet_state.json",
       "runtime_state_file": "testnet_runtime_state.json",
       "equity_log_every_n_loops": 1,
-      "adaptive_strategy": {
-        "enabled": false,
-        "bear_strategy": "sma_rsi_combo",
-        "bull_strategy": "sma_rsi_impulse",
-        "transition_strategy": "sma_rsi_impulse",
-        "market_classification_window": 5,
-        "trend_strength_threshold": 0.02,
-        "strategy_logging": true,
-        "note": "Set enabled=true for adaptive mode in bull markets"
-      },
-      "volume_reversal_strategy": {
-        "enabled": true,
-        "stop_loss_pct": 0.015,
-        "take_profit_pct": 0.04,
+      "rsi_momentum_pullback": {
+        "ignore_regime_filter": true,
+        "adx_threshold": 20,
+        "rsi_lower": 25,
+        "rsi_upper": 45,
+        "rsi_exit": 68,
+        "stop_loss_pct": 0.03,
+        "take_profit_pct": 0.08,
         "max_holding_periods": 20,
-        "volume_ratio_threshold": 2.0,
-        "mfi_threshold": 30,
-        "cmf_threshold": -0.1,
-        "rsi_threshold": 35,
-        "risk_per_trade": 0.01,
-        "max_portfolio_exposure": 0.25,
-        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
+        "risk_per_trade": 0.03
+      },
+      "vwap_band_bounce": {
+        "ignore_regime_filter": false,
+        "rsi_threshold": 40,
+        "mfi_threshold": 35,
+        "stop_loss_pct": 0.035,
+        "take_profit_pct": 0.06,
+        "max_holding_periods": 12,
+        "risk_per_trade": 0.03
+      },
+      "obv_breakout": {
+        "ignore_regime_filter": false,
+        "volume_ratio_threshold": 1.3,
+        "stop_loss_pct": 0.04,
+        "take_profit_pct": 0.10,
+        "max_holding_periods": 30,
+        "trail_pct": 0.04,
+        "risk_per_trade": 0.03
       }
     },
     "phemex_live": {
@@ -140,20 +168,28 @@
       "trigger_price_type": "last",
       "stop_confirm_timeout_sec": 20,
       "symbols": [
-        "BTC/USDT",
         "ETH/USDT",
         "SOL/USDT",
-        "XRP/USDT"
+        "TRX/USDT",
+        "ADA/USDT",
+        "VTHO/USDT",
+        "BAT/USDT",
+        "LTC/USDT",
+        "RUNE/USDT"
       ],
+      "symbol_strategy": {
+        "VTHO/USDT": "vwap_band_bounce"
+      },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
       "fee_rate_hint": 0.001,
+      "strategy": "obv_breakout",
       "risk_per_trade": 0.01,
       "stop_pct": 0.02,
       "trail_pct": 0.02,
       "max_positions": 2,
-      "max_position_pct": 0.3,
-      "max_total_exposure_pct": 0.7,
+      "max_position_pct": 0.15,
+      "max_total_exposure_pct": 0.25,
       "regime_ma_len": 200,
       "regime_slope_len": 5,
       "regime_confirm_days": 2,
@@ -175,28 +211,34 @@
       "state_file": "live_state.json",
       "runtime_state_file": "live_runtime_state.json",
       "equity_log_every_n_loops": 1,
-      "adaptive_strategy": {
-        "enabled": false,
-        "bear_strategy": "sma_rsi_combo",
-        "bull_strategy": "sma_rsi_impulse",
-        "transition_strategy": "sma_rsi_impulse",
-        "market_classification_window": 5,
-        "trend_strength_threshold": 0.02,
-        "strategy_logging": true,
-        "note": "Set enabled=true for adaptive mode in bull markets"
-      },
-      "volume_reversal_strategy": {
-        "enabled": false,
-        "stop_loss_pct": 0.015,
-        "take_profit_pct": 0.04,
+      "rsi_momentum_pullback": {
+        "ignore_regime_filter": true,
+        "adx_threshold": 20,
+        "rsi_lower": 25,
+        "rsi_upper": 45,
+        "rsi_exit": 68,
+        "stop_loss_pct": 0.03,
+        "take_profit_pct": 0.08,
         "max_holding_periods": 20,
-        "volume_ratio_threshold": 2.0,
-        "mfi_threshold": 30,
-        "cmf_threshold": -0.1,
-        "rsi_threshold": 35,
-        "risk_per_trade": 0.01,
-        "max_portfolio_exposure": 0.25,
-        "note": "Enhanced Volume Reversal (Long) - optimized with MFI and CMF indicators"
+        "risk_per_trade": 0.01
+      },
+      "vwap_band_bounce": {
+        "ignore_regime_filter": false,
+        "rsi_threshold": 40,
+        "mfi_threshold": 35,
+        "stop_loss_pct": 0.035,
+        "take_profit_pct": 0.06,
+        "max_holding_periods": 12,
+        "risk_per_trade": 0.01
+      },
+      "obv_breakout": {
+        "ignore_regime_filter": false,
+        "volume_ratio_threshold": 1.3,
+        "stop_loss_pct": 0.04,
+        "take_profit_pct": 0.10,
+        "max_holding_periods": 30,
+        "trail_pct": 0.04,
+        "risk_per_trade": 0.01
       }
     }
   }

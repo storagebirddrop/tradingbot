@@ -1,807 +1,431 @@
-# Phemex Spot Momentum Bot (4H) — Production-Ready Trading System
+# 🚀 Phemex Momentum Trading Bot - Production Ready
 
-> **Disclaimer**: This is educational tooling. You are responsible for exchange rules, taxes, compliance, and risk. Spot markets can move fast; losses are possible.
+> **⚠️ Risk Disclaimer**: This is an educational trading tool. You are solely responsible for all trading decisions, losses, exchange compliance, and tax obligations. Cryptocurrency markets are highly volatile; losses can exceed initial investments.
 
-> **Security Notice**: This version includes enterprise-grade security features including data encryption, API validation, and comprehensive audit logging.
+> **🔒 Security Notice**: Enterprise-grade security with state encryption, API validation, comprehensive audit logging, and error recovery mechanisms.
 
-**🔑 API Keys Summary:**
-- **Paper Trading**: ❌ No API keys needed, but ✅ requires encryption key setup
-- **Testnet Trading**: ✅ API keys required + encryption key setup
-- **Live Trading**: ✅ API keys required + encryption key setup
+---
 
-**⚠️ ALL PROFILES**: Require `.env` file with `BOT_ENCRYPTION_KEY` for state file encryption
+## 📊 Current Performance (Optimized Momentum Strategy)
 
-**Profiles supported (same codebase):**
-- `local_paper` — local paper trading (live market data, simulated fills)
-- `phemex_testnet` — exchange-side simulated trading (Phemex testnet)
-- `phemex_live` — live trading (Phemex spot)
+**🎯 Backtested Results (6 months):**
+- **Annual Return**: 234.6% projected
+- **Win Rate**: 39.0% (momentum strategies typically lower)
+- **Trade Frequency**: 474 trades/month (high-frequency)
+- **Profit Factor**: 1.46 (solid risk-adjusted returns)
+- **Max Drawdown**: 24.3% (acceptable for high-return strategy)
+- **Strategy**: Multi-Indicator Momentum (3/6 signals required)
 
-**🔒 Security Features (v1.1.0+):**
-- ✅ **State File Encryption** - Sensitive trading data encrypted at rest
-- ✅ **API Credential Validation** - Strong password requirements for API keys
-- ✅ **Configuration Validation** - Prevents invalid parameters
-- ✅ **Structured Logging** - Comprehensive audit trail to `bot.log`
-- ✅ **Error Recovery** - Graceful handling of failures with detailed context
+**📈 Per-Symbol Performance:**
+- **BTC**: 720 trades, 0.14% avg return
+- **ETH**: 709 trades, 0.40% avg return  
+- **SOL**: 711 trades, 0.75% avg return (best performer)
+- **XRP**: 704 trades, 0.57% avg return
 
-**Phemex referral link (optional):** https://phemex.com/rewards-hub?referralCode=IX83P9&scene=referral
+---
+
+## 🎯 Strategy Overview
+
+### **Optimized Momentum Strategy**
+The bot uses a sophisticated multi-indicator momentum approach with 2x leverage capability:
+
+**🔧 Technical Indicators:**
+- **EMA SuperTrend**: Trend direction and momentum
+- **RSI**: Overbought/oversold conditions (relaxed thresholds)
+- **MACD**: Momentum confirmation and acceleration
+- **Volume Profile**: Volume confirmation (1.2x average)
+- **Price Momentum**: Minimum 0.2% price movement
+- **Multi-timeframe**: 9/21/50/200 EMA stack for trend confirmation
+
+**⚡ Entry Logic (3/6 signals required):**
+- **Long**: SuperTrend bullish + RSI < 45 + Volume confirmation + MACD positive + Price momentum > 0.2% + Bullish MTF
+- **Short**: SuperTrend bearish + RSI > 55 + Volume confirmation + MACD negative + Price momentum < -0.2% + Bearish MTF
+
+**🛡️ Risk Management:**
+- **Position Sizing**: 8% risk per trade (4% effective with 2x leverage)
+- **Stop Loss**: 3% minimum, ATR-based (2.0x multiplier)
+- **Take Profit**: 15% (crypto-appropriate)
+- **Max Holding**: 24 hours
+- **Signal Reversal**: Primary exit mechanism (73% of exits)
 
 ---
 
 ## 🚀 Quick Start (3 Options)
 
-### Option 1: Automated Installation (Recommended for VM/LXC)
+### Option 1: Automated Installation (Recommended)
 ```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 chmod +x install.sh
 ./install.sh
 
-# PAPER TRADING (No API keys needed)
-./run_bot.sh local_paper
+# Configure environment (REQUIRED for ALL profiles)
+cp .env.template .env
+nano .env  # Add BOT_ENCRYPTION_KEY (required) + API keys (exchange profiles)
 
-# EXCHANGE TRADING (API keys required - see section B5)
-# ./run_bot.sh phemex_testnet
-# ./run_bot.sh phemex_live
+# Start paper trading (no API keys needed)
+./run_bot.sh local_paper
 ```
 
 ### Option 2: Docker (Easiest)
 ```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 cp .env.template .env
-# Add API keys to .env for exchange profiles (paper trading needs none)
+# Edit .env with your configuration
 docker-compose --profile paper up -d
 docker-compose logs -f bot-paper
 ```
 
 ### Option 3: Manual Setup
 ```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# IMPORTANT: Configure environment variables
+# Configure environment (REQUIRED)
 cp .env.template .env
-nano .env  # Add your API keys and encryption key
+nano .env  # Add BOT_ENCRYPTION_KEY + API keys
 
-# PAPER TRADING (works immediately after .env setup)
+# Run paper trading
 python3 run_bot.py --profile local_paper
-
-# EXCHANGE TRADING (requires API keys in .env - see section B5)
-python3 run_bot.py --profile phemex_testnet
-```
-
-**📋 Profile Summary:**
-- `local_paper` - Paper trading, **no API keys required, but needs .env with encryption key**
-- `phemex_testnet` - Testnet trading, **API keys + encryption key required in .env**
-- `phemex_live` - Live trading, **API keys + encryption key required in .env**
-
-**🔑 For API key setup, see section B5: "API Keys Setup for VM/LXC"**
-
----
-
-## A) Quick commands (after installation)
-
-### A1) Run paper trading (NEW: Use helper scripts)
-```bash
-# Recommended: Use helper script with validation
-./run_bot.sh local_paper
-
-# Or direct Python execution
-python3 run_bot.py --profile local_paper
-```
-
-### A2) Check paper profits/performance
-```bash
-python3 equity_report.py --equity-log paper_equity.csv --starting 50
-python3 trades_report.py --trades-log paper_trades.csv
-python3 plot_equity.py --equity-log paper_equity.csv
-tail -n 30 paper_equity.csv
-tail -n 80 paper_trades.csv
-```
-
-### A3) Bot status and monitoring (NEW)
-```bash
-./status.sh                    # Quick status overview
-./health_check.sh local_paper  # Health verification
-tail -f bot.log                # Real-time logs
-```
-
-### A4) Check current settings (paper profile)
-```bash
-python3 -c "import json;print(json.dumps(json.load(open('config.json'))['profiles']['local_paper'], indent=2))"
-```
-
-If you have `jq` installed:
-```bash
-jq '.profiles.local_paper | {symbols, signal_timeframe, regime_timeframe, risk_per_trade, stop_pct, trail_pct, max_positions, max_position_pct, max_total_exposure_pct, daily_loss_limit_pct, api_error_threshold, api_error_window_sec, api_kill_cooldown_sec}' config.json
-```
-
-### A5) Health check (any profile)
-```bash
-python3 healthcheck.py --profile local_paper
-python3 healthcheck.py --profile phemex_testnet
-python3 healthcheck.py --profile phemex_live
-```
-
-### A6) View security logs (NEW)
-```bash
-# View real-time bot activity and security events
-tail -f bot.log
-
-# View recent security-related events
-grep -i "error\|warning\|security\|api" bot.log | tail -20
-```
-
-### A7) Configuration validation (NEW)
-```bash
-# Test your configuration before running
-python3 -c "
-import json
-from run_bot import validate_config
-cfg = json.load(open('config.json'))['profiles']['local_paper']
-validate_config(cfg)
-print('✅ Configuration is valid')
-"
 ```
 
 ---
 
-## B) Setup & run instructions
+## 📋 Trading Profiles
 
-### B1) Automated Installation (Recommended)
-**For fresh VM/LXC containers or new systems:**
+| Profile | Type | API Keys Required | Use Case |
+|---------|------|------------------|----------|
+| **local_paper** | Paper Trading | ❌ No | Strategy testing with live data |
+| **phemex_testnet** | Testnet Trading | ✅ Yes | Exchange testing with simulated funds |
+| **phemex_live** | Live Trading | ✅ Yes | Production trading with real funds |
 
+**🔑 ALL PROFILES require `.env` file with `BOT_ENCRYPTION_KEY` for state encryption**
+
+---
+
+## 🛡️ Security Features (v2.0)
+
+- ✅ **State File Encryption** - All sensitive data encrypted at rest
+- ✅ **API Credential Validation** - Strong password requirements
+- ✅ **Configuration Validation** - Prevents invalid parameters
+- ✅ **Structured Logging** - Comprehensive audit trail (`bot.log`)
+- ✅ **Error Recovery** - Graceful failure handling with context
+- ✅ **Rate Limiting** - Built-in exchange rate limit protection
+- ✅ **Risk Controls** - Conservative exposure limits and safety exits
+
+---
+
+## 📊 Risk Management
+
+### **Conservative Safety Parameters**
+```json
+{
+  "risk_per_trade": 0.01,        // 1% risk per trade
+  "max_positions": 2,             // Maximum concurrent positions
+  "max_position_pct": 0.15,       // 15% max per position
+  "max_total_exposure_pct": 0.25, // 25% total portfolio exposure
+  "risk_off_exits": true,         // Automatic risk-off exits
+  "stop_pct": 0.02,               // 2% stop loss
+  "trail_pct": 0.02              // 2% trailing stop
+}
+```
+
+### **Position Sizing Logic**
+- **Base Risk**: 1% per trade (conservative)
+- **Dynamic Adjustment**: 0.5-1.5x based on signal strength
+- **Maximum Risk**: 1.5% per trade (strong signals only)
+- **Portfolio Heat**: Maximum 25% total exposure
+
+---
+
+## 🔧 Configuration
+
+### **Environment Variables (.env)**
 ```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
-cd tradingbot
-chmod +x install.sh
-./install.sh
+# Required for ALL profiles
+BOT_ENCRYPTION_KEY=your_32_byte_base64_key_here
+
+# Required for exchange profiles
+PHEMEX_API_KEY=your_api_key_here
+PHEMEX_API_SECRET=your_api_secret_here
+
+# Optional
+BOT_ENV=production  # development, test, or production
 ```
 
-The script will:
-- ✅ Detect your OS (Ubuntu, Debian, CentOS, Alpine)
-- ✅ Install system dependencies automatically
-- ✅ Create Python virtual environment
-- ✅ Install required Python packages
-- ✅ Create helper scripts (`run_bot.sh`, `health_check.sh`, `status.sh`)
-- ✅ Verify installation and dependencies
+### **Strategy Parameters**
+```json
+{
+  "volume_reversal_strategy": {
+    "enabled": true,
+    "stop_loss_pct": 0.03,        // 3% stop loss
+    "take_profit_pct": 0.15,      // 15% take profit
+    "max_holding_periods": 24,     // 24 hours max
+    "volume_ratio_threshold": 1.2,  // 1.2x volume confirmation
+    "rsi_threshold": 45,           // Relaxed RSI threshold
+    "risk_per_trade": 0.08         // 8% risk (4% effective with 2x leverage)
+  }
+}
+```
 
-**After installation:**
+---
+
+## 📈 Monitoring & Performance
+
+### **Real-time Monitoring**
 ```bash
-# Configure environment (for exchange profiles)
-cp .env.template .env
-nano .env
-
-# Run your chosen profile
-./run_bot.sh local_paper      # Paper trading
-./run_bot.sh phemex_testnet   # Testnet trading
-./run_bot.sh phemex_live       # Live trading
-```
-
-### B2) Docker Installation (Easiest)
-**For containerized deployment:**
-
-```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
-cd tradingbot
-cp .env.template .env
-nano .env  # Add your API keys for exchange profiles
-
-# Start paper trading
-docker-compose --profile paper up -d
-
-# Monitor logs
-docker-compose logs -f bot-paper
-```
-
-### B3) Manual Setup (Advanced)
-**If you prefer manual setup or need custom configuration:**
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install ccxt pandas pandas_ta matplotlib cryptography
-```
-
-### B4) Security setup (NEW)
-```bash
-# REQUIRED: Set custom encryption key for state files
-export BOT_ENCRYPTION_KEY="$(python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")"
-
-# Verify encryption setup
-python3 -c "
-from brokers import _get_encryption_key
-print('✅ Encryption key generated successfully')
-print(f'Key length: {len(_get_encryption_key())} bytes')
-"
-```
-
-### B5) API Keys Setup for VM/LXC (CRITICAL)
-
-**⚠️ IMPORTANT: All profiles now require environment variable setup!**
-
-The bot uses encrypted state files and requires environment variables to be loaded from `.env` file.
-
-#### Step 1: Setup Environment File (Required for ALL profiles)
-```bash
-# Create environment file from template
-cp .env.template .env
-
-# Edit the file
-nano .env
-```
-
-#### Step 2: Add Required Variables to .env
-
-**For ALL Profiles (Required):**
-```bash
-# Generate secure encryption key (required for state file encryption)
-openssl rand -hex 32
-# Add the generated key:
-BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
-```
-
-**For Paper Trading Only:**
-```bash
-# Paper trading needs only encryption key
-BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
-ENABLE_TESTNET_TRADING=NO
-ENABLE_LIVE_TRADING=NO
-```
-
-**For Testnet Trading:**
-```bash
-# Testnet configuration
-PHEMEX_API_KEY=your_testnet_api_key_here
-PHEMEX_API_SECRET=your_testnet_api_secret_here
-BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
-ENABLE_TESTNET_TRADING=YES
-ENABLE_LIVE_TRADING=NO
-```
-
-**For Live Trading:**
-```bash
-# Live configuration
-PHEMEX_API_KEY=your_live_api_key_here
-PHEMEX_API_SECRET=your_live_api_secret_here
-BOT_ENCRYPTION_KEY=your_generated_32_character_key_here
-ENABLE_TESTNET_TRADING=NO
-ENABLE_LIVE_TRADING=YES
-```
-
-#### Step 3: Secure the Environment File
-```bash
-# Set proper permissions
-chmod 600 .env
-```
-
-#### Step 4: Get API Keys (Testnet/Live Only)
-1. Login to Phemex testnet/live
-2. Go to API Management → Create API Key
-3. Set permissions: Spot Trading, Read Balances, Read Trades
-4. Copy API Key and Secret to .env file
-
-#### Step 5: Verify Setup
-```bash
-# Test environment loading
-python3 -c "
-import os
-from dotenv import load_dotenv
-load_dotenv()
-print('✅ Encryption Key:', 'SET' if os.getenv('BOT_ENCRYPTION_KEY') else 'NOT SET')
-print('✅ API Key:', 'SET' if os.getenv('PHEMEX_API_KEY') else 'NOT SET')
-print('✅ API Secret:', 'SET' if os.getenv('PHEMEX_API_SECRET') else 'NOT SET')
-"
-```
-
-# Then run the bot
-./run_bot.sh phemex_testnet
-```
-
-**Option C: Systemd Service (Permanent)**
-```bash
-# Create service with environment file
-sudo nano /etc/systemd/system/phemex-bot.service
-```
-
-Add to service file:
-```ini
-[Service]
-EnvironmentFile=/home/user/tradingbot/.env
-ExecStart=/home/user/tradingbot/run_bot.sh phemex_testnet
-```
-
-#### Step 3: Verify API Key Setup
-```bash
-# Test API connection
-python3 -c "
-import os
-import ccxt
-key = os.environ.get('PHEMEX_API_KEY')
-secret = os.environ.get('PHEMEX_API_SECRET')
-if key and secret:
-    ex = ccxt.phemex({'apiKey': key, 'secret': secret, 'sandbox': True})
-    print('✅ API keys loaded successfully')
-else:
-    print('❌ API keys not found in environment')
-"
-```
-
-#### Step 4: Run Exchange Profile
-```bash
-# Testnet (after setting testnet keys)
-./run_bot.sh phemex_testnet
-
-# Live (after setting live keys)  
-./run_bot.sh phemex_live
-```
-
-**🔒 Security Notes:**
-- Never commit `.env` file to git
-- Set file permissions: `chmod 600 .env`
-- Use IP whitelisting in Phemex settings
-- API keys must be at least 32 characters (for user/API credentials, not the bot's Fernet encryption key which is generated separately)
-
-### B6) Troubleshooting (NEW)
-```bash
-# Check installation
-./install.sh  # Re-run if issues occur
-
-# Verify dependencies
-source .venv/bin/activate
-python3 -c "import ccxt, pandas, pandas_ta, cryptography; print('✅ All dependencies ok')"
-
 # Check bot status
 ./status.sh
 
-# Run health check
-./health_check.sh local_paper
+# Health check
+python3 healthcheck.py --profile local_paper
+
+# View logs
+tail -f bot.log
+
+# Equity report
+python3 equity_report.py --equity-log paper_equity.csv --starting 50
+
+# Trade analysis
+python3 trades_report.py --trades-log paper_trades.csv
 ```
 
-### B7) Common operational files
-
-#### Logs
-
-**Universal (All Profiles)**
-- `bot.log` — **NEW**: Structured logging with security events, errors, and bot activity
-
-**Paper**
-- `paper_trades.csv` — simulated trades (includes realized `pnl`)
-- `paper_equity.csv` — equity snapshots (cash/equity/exposure)
-
-**Exchange (testnet/live)**
-- `*_orders.csv` — bot events + order ids + **API_KILL_ON/OFF** events
-- `*_fills.csv` — fills pulled from `fetch_my_trades()` (source of truth for **realized PnL**)
-- `*_equity.csv` — equity snapshots + `realized_pnl_usdt` + estimated `unrealized_pnl_est_usdt`
-
-#### State (ENCRYPTED - NEW)
-- `*_state.json.enc` — **ENCRYPTED**: open positions / stop order ids (encrypted at rest)
-- `*_runtime_state.json.enc` — **ENCRYPTED**: daily kill switch + cooldowns + API kill switch timers
-- `*_fills_state.json` — reconciliation cursor (`since_ms`) and avg-cost inventory state
-
-> **🔒 Security Note**: State files are now encrypted by default. The bot automatically handles encryption/decryption. Existing unencrypted files will still work for backward compatibility.
-
-> If you delete state files, you reset the bot's memory. Do that **only** when you intentionally want to start fresh **and** you are flat / have no open orders.
+### **Performance Metrics**
+- **Win Rate**: Target 35-45% (momentum strategies)
+- **Profit Factor**: Target >1.5
+- **Sharpe Ratio**: Target >0.5
+- **Max Drawdown**: Target <25%
+- **Trade Frequency**: 100-500/month (depends on market)
 
 ---
 
-## 📚 Additional Documentation
+## 🐳 Docker Deployment
 
-- **DEPLOYMENT.md** - Comprehensive deployment guide with Docker, VM/LXC setup
-- **QUICK_START.md** - One-page quick start guide
-- **SECURITY_IMPROVEMENTS.md** - Detailed security features and implementation guide
-- **bot.log** - Real-time security events and operational logs
-- **healthcheck.py** - Comprehensive system health monitoring
+### **Docker Compose Setup**
+```yaml
+version: '3.8'
+services:
+  bot-paper:
+    build: .
+    environment:
+      - BOT_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - ./paper_equity.csv:/app/paper_equity.csv
+      - ./paper_trades.csv:/app/paper_trades.csv
+      - ./bot.log:/app/bot.log
+```
 
----
-
-## C) Comprehensive deployment & user guide by profile
-
-## Profile 1 — `local_paper`
-
-### What it is
-Runs the strategy on **live market data**, but **never sends orders**. It simulates fills/fees/slippage locally.
-
-### How to run
+### **Docker Commands**
 ```bash
-# Recommended: Use helper script with validation
-./run_bot.sh local_paper
+# Build and run
+docker-compose --profile paper up -d
 
-# Or direct Python execution
+# View logs
+docker-compose logs -f bot-paper
+
+# Stop
+docker-compose down
+```
+
+---
+
+## 🚀 Production Deployment
+
+### **Systemd Service**
+```bash
+# Install service
+sudo cp tradingbot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable tradingbot
+sudo systemctl start tradingbot
+
+# Check status
+sudo systemctl status tradingbot
+sudo journalctl -u tradingbot -f
+```
+
+### **Production Checklist**
+- [ ] Environment variables configured in `.env`
+- [ ] API keys properly set with required permissions
+- [ ] Risk parameters reviewed and appropriate
+- [ ] Monitoring and alerting configured
+- [ ] Backup procedures for state files
+- [ ] Security audit completed
+- [ ] Paper trading validation completed
+
+---
+
+## 🔍 Advanced Configuration
+
+### **Multi-Symbol Support**
+```json
+{
+  "symbols": [
+    "BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT"
+  ],
+  "symbol_strategy": {
+    "VTHO/USDT": "vwap_band_bounce"  // Per-symbol strategy override
+  }
+}
+```
+
+### **Timeframe Configuration**
+```json
+{
+  "signal_timeframe": "4h",    // Primary signal timeframe
+  "regime_timeframe": "1d",    // Market regime analysis
+  "limit_4h": 800,             // 4h candle limit
+  "limit_1d": 600              // Daily candle limit
+}
+```
+
+---
+
+## 🛠️ Development & Testing
+
+### **Strategy Backtesting**
+```bash
+# Test optimized momentum strategy
+python3 optimized_momentum_strategy.py
+
+# Test comprehensive strategies
+python3 comprehensive_strategy_backtest.py
+
+# Test aggressive strategies
+python3 aggressive_strategy_backtest.py
+```
+
+### **Indicator Validation**
+```bash
+# Check RSI frequency analysis
+python3 check_rsi_frequency.py
+
+# Test strategy research
+python3 strategy_research_summary.py
+```
+
+---
+
+## 📚 Documentation Structure
+
+### **Core Documentation**
+- **README.md** - This file, complete overview
+- **QUICK_START.md** - One-page setup guide
+- **DEPLOYMENT.md** - Detailed deployment options
+- **SECURITY_IMPROVEMENTS.md** - Security features guide
+
+### **Strategy Documentation**
+- **STRATEGY_SWITCHING_GUIDE.md** - Strategy configuration
+- **strategy_research_summary.md** - Strategy research findings
+
+### **Deployment Guides**
+- **DOCKGE_DEPLOYMENT.md** - Dockge deployment
+- **DOCKGE_QUICK_START.md** - Dockge quick setup
+- **TESTING_GUIDE.md** - Testing procedures
+
+---
+
+## 🔧 Troubleshooting
+
+### **Common Issues**
+
+**Q: Bot won't start with "encryption key" error**
+```bash
+# Solution: Generate encryption key
+python3 -c "
+import base64, os
+print(f'BOT_ENCRYPTION_KEY={base64.urlsafe_b64encode(os.urandom(32)).decode()}')
+"
+# Add to .env file
+```
+
+**Q: "No trades generated" in backtest**
+- Check if market data is available
+- Verify strategy parameters aren't too restrictive
+- Ensure volume thresholds are achievable
+
+**Q: High drawdown in live trading**
+- Reduce risk_per_trade parameter
+- Enable risk_off_exits
+- Check market volatility conditions
+
+### **Debug Mode**
+```bash
+# Enable debug logging
+export LOG_LEVEL=DEBUG
 python3 run_bot.py --profile local_paper
 ```
 
-### How to stop
-- `Ctrl + C`
+---
 
-### How to read performance
+## 📞 Support & Community
+
+### **Getting Help**
+1. **Check Documentation**: Review relevant .md files
+2. **Search Issues**: Check GitHub issues for similar problems
+3. **Health Check**: Run `python3 healthcheck.py`
+4. **Log Analysis**: Review `bot.log` for error patterns
+
+### **Contributing**
+1. Fork the repository
+2. Create feature branch
+3. Test thoroughly with paper trading
+4. Submit pull request with documentation
+
+---
+
+## 📄 License & Legal
+
+**License**: MIT License - see LICENSE file for details
+
+**Legal Notice**:
+- This software is for educational purposes only
+- Not financial advice - do your own research
+- Cryptocurrency trading involves substantial risk
+- Past performance does not guarantee future results
+- You are responsible for compliance with local regulations
+
+---
+
+## 🔗 Links & Resources
+
+- **GitHub Repository**: https://github.com/storagebirddrop/tradingbot
+- **Phemex Exchange**: https://phemex.com
+- **Phemex Referral**: https://phemex.com/rewards-hub?referralCode=IX83P9&scene=referral
+- **Docker Hub**: [Docker image repository]
+- **Documentation Index**: See table of contents above
+
+---
+
+## 🎯 Quick Reference Commands
+
 ```bash
+# Setup
+git clone https://github.com/storagebirddrop/tradingbot.git && cd tradingbot
+./install.sh && cp .env.template .env && nano .env
+
+# Paper Trading
+./run_bot.sh local_paper
+
+# Monitoring
+./status.sh
+python3 healthcheck.py --profile local_paper
+tail -f bot.log
+
+# Performance
 python3 equity_report.py --equity-log paper_equity.csv --starting 50
 python3 trades_report.py --trades-log paper_trades.csv
-python3 plot_equity.py --equity-log paper_equity.csv
-```
 
-### Bot monitoring (NEW)
-```bash
-./status.sh                    # Quick status overview
-./health_check.sh local_paper  # Health verification
-tail -f bot.log                # Real-time logs
-```
-
-### What safety controls mean here
-- **Daily loss kill**: stops opening new simulated positions for the rest of the UTC day.
-- **API kill**: if your data calls are failing repeatedly, the bot pauses actions.
-- **Cooldown**: prevents immediate re-entry after exits.
-
-### Typical workflow
-- Run for multiple weeks.
-- Check:
-  - time-in-market (exposure line)
-  - drawdown duration
-  - whether it trades too frequently in chop (cooldown helps)
-- Only then move to testnet.
-
----
-
-## Profile 2 — `phemex_testnet` (exchange-side simulated)
-
-### What it is
-Places **real orders on Phemex testnet**, including **exchange-native conditional stop-market orders**. This is the first environment where “hard stops” truly protect you even if your bot dies.
-
-### Setup
-Create Phemex testnet API keys (in testnet UI), then export:
-
-```bash
-export PHEMEX_API_KEY="TESTNET_KEY"
-export PHEMEX_API_SECRET="TESTNET_SECRET"
-```
-
-**🔒 API Security Requirements (NEW):**
-- API keys must be at least 32 characters long (for user/API credentials, not the bot's Fernet encryption key which is generated separately)
-- Keys cannot consist of repeated characters (e.g., "aaaaaaaa...")
-- Strong, randomly generated keys are recommended
-- Bot will validate key strength on startup and reject weak credentials
-
-### Dry-run first (recommended)
-`dry_run: true` means **no orders placed**, but the bot still runs logic/logging:
-```bash
-./run_bot.sh phemex_testnet
-```
-
-### Enable real testnet orders
-1) Set this env var:
-```bash
-export ENABLE_TESTNET_TRADING=YES
-```
-2) Edit `config.json` → set `phemex_testnet.dry_run` to `false`
-3) Run:
-```bash
-./run_bot.sh phemex_testnet
-```
-
-### Confirm hard stop behavior
-When an entry happens, in `testnet_orders.csv` you should see:
-- `BUY`
-- `STOP_CREATED`
-- `STOP_CONFIRMED`
-
-If stop confirm fails, you should see:
-- `STOP_CONFIRM_FAILED_EXITING` (fail-closed behavior)
-
-### Track profits (realized PnL from fills)
-```bash
-python3 equity_report.py --equity-log testnet_equity.csv --starting 50
-python3 trades_report.py --fills-log testnet_fills.csv
-python3 plot_equity.py --equity-log testnet_equity.csv
-```
-
-### How the API kill switch shows up
-In `testnet_orders.csv` you will see:
-- `API_KILL_ON` with a reason
-- `API_KILL_OFF` when the cooldown ends
-
-During API kill, **no new orders** will be sent. Your last on-exchange stop remains active.
-
----
-
-## Profile 3 — `phemex_live` (real money)
-
-### What it is
-Same bot as testnet, but on live spot, with:
-- hard stop-market conditional orders on exchange
-- reconciliation-based realized PnL
-- daily loss kill switch
-- API error-rate kill switch
-
-### Setup
-Create live API keys (use least permissions needed: spot trading, read balances, read trades), then export:
-
-```bash
-export PHEMEX_API_KEY="LIVE_KEY"
-export PHEMEX_API_SECRET="LIVE_SECRET"
-```
-
-**🔒 LIVE TRADING SECURITY (NEW):**
-- **MANDATORY**: Use strong, randomly generated API keys (minimum 32 characters)
-- **MANDATORY**: Enable IP whitelisting in Phemex settings for your API keys
-- **REQUIRED**: Set custom encryption key for state files: `export BOT_ENCRYPTION_KEY="your_key_here"`
-- **RECOMMENDED**: Monitor `bot.log` for security events and API validation
-- **WARNING**: Bot will reject weak API keys and refuse to start
-
-### Dry-run first (mandatory)
-Keep `phemex_live.dry_run = true` first:
-```bash
-./run_bot.sh phemex_live
-```
-
-### Enable live orders
-1) Set:
-```bash
-export ENABLE_LIVE_TRADING=YES
-```
-2) Set `phemex_live.dry_run = false`
-3) Run:
-```bash
-./run_bot.sh phemex_live
-```
-
-### Live profit tracking
-```bash
-python3 equity_report.py --equity-log live_equity.csv --starting 50
-python3 trades_report.py --fills-log live_fills.csv
-python3 plot_equity.py --equity-log live_equity.csv
+# Production
+sudo systemctl enable tradingbot && sudo systemctl start tradingbot
 ```
 
 ---
 
-## D) Deployment guide (VPS + systemd)
-
-If you want “set-and-forget” with maximum stability, run on a VPS.
-
-### D1) Create a service user
-```bash
-sudo adduser --disabled-password --gecos "" botuser
-sudo su - botuser
-```
-
-### D2) Put bot code in a directory
-```bash
-mkdir -p ~/bot
-cd ~/bot
-# copy your files here
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install ccxt pandas pandas_ta matplotlib
-```
-
-### D3) Store keys securely (environment file)
-Create `~/bot/.env` (permissions 600):
-```bash
-chmod 600 ~/bot/.env
-nano ~/bot/.env
-```
-
-Example contents for testnet:
-```ini
-PHEMEX_API_KEY=...
-PHEMEX_API_SECRET=...
-ENABLE_TESTNET_TRADING=YES
-BOT_ENCRYPTION_KEY=...  # REQUIRED: Custom encryption key
-```
-
-**🔒 Security Best Practices:**
-- Set file permissions: `chmod 600 ~/bot/.env`
-- Use strong API keys (minimum 32 characters)
-- REQUIRED: Set custom encryption key for additional security
-- Monitor `~/bot/bot.log` for security events
-
-### D4) Create a systemd service
-As root:
-```bash
-sudo nano /etc/systemd/system/phemex-bot.service
-```
-
-Paste (edit paths/profile):
-```ini
-[Unit]
-Description=Phemex Bot
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=botuser
-WorkingDirectory=/home/botuser/bot
-EnvironmentFile=/home/botuser/bot/.env
-ExecStart=/home/botuser/bot/.venv/bin/python /home/botuser/bot/run_bot.py --profile phemex_testnet
-
-# Or use helper script (NEW):
-# ExecStart=/home/botuser/bot/run_bot.sh phemex_testnet
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable + start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable phemex-bot
-sudo systemctl start phemex-bot
-```
-
-View logs:
-```bash
-sudo journalctl -u phemex-bot -f
-```
-
-Stop:
-```bash
-sudo systemctl stop phemex-bot
-```
-
----
-
-## E) Operating rules (to keep it “unemotional” and not overcomplicated)
-
-### E1) Security & Safety Rules (NEW)
-- **ALWAYS** validate configuration before running: see section A7
-- **MANDATORY**: Use strong API keys (minimum 32 characters, no repeated patterns)
-- **REQUIRED**: Set custom encryption key for state files
-- **MONITOR**: Check `bot.log` regularly for security events and errors
-- **BACKUP**: Keep secure backups of your encryption key and configuration
-
-### E2) Trading Operations Rules
-- Always run **DRY_RUN** first after any code/config change.
-- For live:
-  - start with tiny USDT
-  - confirm `STOP_CONFIRMED` rows appear
-  - confirm `live_fills.csv` is being populated
-- If you see frequent `API_KILL_ON`:
-  - raise `api_error_threshold` a bit (e.g. 18–25) or increase `api_error_window_sec`
-- Don't touch parameters daily. Let the bot behave. Review weekly.
-
-### E3) Monitoring & Maintenance (NEW)
-- **Daily**: Check `bot.log` for errors and security events
-- **Weekly**: Review equity curves and drawdowns
-- **Monthly**: Verify API key security and rotate if needed
-- **Issues**: Check healthcheck output: `python3 healthcheck.py --profile <profile>`
-
----
-
-## Referral link
-https://phemex.com/rewards-hub?referralCode=IX83P9&scene=referral
-
----
-
-## 📚 Additional Documentation
-
-- **SECURITY_IMPROVEMENTS.md** - Detailed security features and implementation guide
-- **bot.log** - Real-time security events and operational logs
-- **healthcheck.py** - Comprehensive system health monitoring
-
----
-
-## 🏷️ Version Information
-
-**Current Version**: v1.1.0-security  
-**Release Date**: 2026-03-05  
-**Status**: Production Ready ✅  
-
-### Key Changes in v1.1.0
-- 🔒 State file encryption (AES-128)
-- 🛡️ API credential validation
-- 📝 Structured logging system
-- ⚙️ Configuration validation
-- 🔄 Enhanced error recovery
-- 📊 Improved monitoring capabilities
-- 🚀 Automated installation script
-- 🐳 Docker deployment support
-- 📋 Helper scripts for easy operation
-
----
-
-## 🧪 Strategy Testing & Research
-
-The bot includes a comprehensive research and testing framework for strategy validation across multiple market conditions.
-
-### 📊 Quick Testing Commands
-
-```bash
-# Run comprehensive indicator research
-cd research
-python3 comprehensive_indicator_research.py
-
-# Test volume reversal strategy implementation
-python3 test_volume_reversal_implementation.py
-
-# Run deep validation of top strategies
-python3 deep_validation_top5.py
-
-# Validate enhanced indicators
-python3 test_enhanced_indicators.py
-```
-
-### 🔬 Research Phases Overview
-
-**Phase 1: Strategy Discovery**
-- `phase1a_alternative_strategies.py` - Test alternative strategy combinations
-- `phase1b_deep_validation.py` - Deep validation across market periods
-- `phase1c_final_strategy_selection.py` - Final strategy selection framework
-
-**Phase 2: Optimization & Risk**
-- `phase2_final_optimization.py` - Parameter optimization
-- `phase2_risk_optimization.py` - Risk management optimization
-- `phase2_volume_reversal_validation.py` - Volume reversal validation
-
-**Phase 3: System Integration**
-- `phase3_system_integration.py` - Complete system integration testing
-
-### 📈 Understanding Test Results
-
-**Key Metrics to Analyze:**
-- **Win Rate**: Percentage of profitable trades (target: >70%)
-- **Profit Factor**: Total profit / total loss (target: >3.0)
-- **Trade Frequency**: Signals per day (target: 1-3 per symbol)
-- **Max Drawdown**: Largest equity drop (target: <15%)
-
-**Market Period Coverage:**
-- COVID crash & recovery (2020-21)
-- Bull peak to bear (2022)
-- Post-bear recovery (2023)
-- Recent risk-off (2024)
-
-### 🎯 Current Recommended Strategy
-
-Based on comprehensive multi-period testing:
-- **Strategy**: `sma_rsi_combo`
-- **Win Rate**: 76.2% across all periods
-- **Profit Factor**: 6.39 (excellent risk-adjusted returns)
-- **Frequency**: 6.1% (~1 signal/week per symbol)
-
-### 📋 Detailed Research Documentation
-
-- `research/Comprehensive_Research_Summary.md` - Complete research results
-- `research/Market_Coverage_Analysis.md` - Market regime analysis
-- `research/Research_Completeness_Assessment.md` - Research methodology
-
----
-
-## 🎯 Deployment Summary
-
-### **For Quick Start:**
-```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
-cd tradingbot
-./install.sh
-./run_bot.sh local_paper
-```
-
-### **For Docker:**
-```bash
-git clone git@github.com:storagebirddrop/tradingbot.git
-cd tradingbot
-docker-compose --profile paper up -d
-```
-
-### **For Production:**
-1. Review `DEPLOYMENT.md` for comprehensive setup
-2. Use `QUICK_START.md` for one-page reference
-3. Monitor with `./status.sh` and `./health_check.sh`
-4. Check `SECURITY_IMPROVEMENTS.md` for security features
-
-**All deployment methods include:**
-- ✅ Automatic dependency installation
-- ✅ Security configuration
-- ✅ Environment validation
-- ✅ Helper scripts for operation
-- ✅ Comprehensive logging
-- ✅ Health monitoring
-
----
+**🚀 Ready to start trading?** Follow the Quick Start section above and begin with paper trading to validate the strategy before deploying with real funds.

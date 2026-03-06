@@ -12,7 +12,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-    command: python3 run_bot.py --profile local_paper
+      - ./config.json:/app/config.json
+    command: python3 src/run_bot.py --profile local_paper
     profiles:
       - paper
 
@@ -30,7 +31,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-    command: python3 run_bot.py --profile phemex_testnet
+      - ./config.json:/app/config.json
+    command: python3 src/run_bot.py --profile phemex_testnet
     profiles:
       - testnet
 
@@ -48,7 +50,8 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-    command: python3 run_bot.py --profile phemex_live
+      - ./config.json:/app/config.json
+    command: python3 src/run_bot.py --profile phemex_live
     profiles:
       - live
 

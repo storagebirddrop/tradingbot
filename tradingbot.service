@@ -1,0 +1,23 @@
+[Unit]
+Description=Trading Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=tradingbot
+Group=tradingbot
+WorkingDirectory=/home/tradingbot/tradingbot
+EnvironmentFile=/home/tradingbot/tradingbot/.env
+Environment=BOT_ENV=production
+ExecStart=/bin/bash -c 'source /home/tradingbot/tradingbot/.venv/bin/activate && python3 /home/tradingbot/tradingbot/src/run_bot.py --profile phemex_testnet'
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tradingbot
+
+# Security settings
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
