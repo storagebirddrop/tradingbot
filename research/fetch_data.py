@@ -21,9 +21,15 @@ import os
 import sys
 import time
 import argparse
+from datetime import datetime, timezone
 
 import pandas as pd
 import ccxt
+
+try:
+    import requests as _requests
+except ImportError:
+    _requests = None
 
 _HERE    = os.path.dirname(os.path.abspath(__file__))
 _ROOT    = os.path.dirname(_HERE)
@@ -32,8 +38,8 @@ DATA_DIR = os.path.join(_ROOT, "data")
 DEFAULT_SYMBOLS = ["ETH", "SOL", "TRX", "ADA", "VTHO", "BAT", "LTC", "RUNE"]
 
 LIMITS = {
-    "4h": 2000,   # ≈333 days
-    "1d": 800,    # ≈2.2 years
+    "4h": 35000,  # ≈9 years; actual depth capped by exchange availability
+    "1d": 4000,   # ≈11 years
 }
 
 
@@ -44,19 +50,22 @@ def _make_exchange(name: str) -> ccxt.Exchange:
 
 
 def fetch_ohlcv_paginated(exchange: ccxt.Exchange, symbol: str, timeframe: str,
-                           total_bars: int, batch: int = 1000) -> pd.DataFrame:
+                           total_bars: int, batch: int = 1000,
+                           since_ms: int = None) -> pd.DataFrame:
     """
     Fetch up to `total_bars` of OHLCV via paginated requests (walks forwards in time from `since`).
     Respects Binance's 1000-bar-per-request limit. Deduplicates and sorts ascending.
+
+    If `since_ms` is provided it is used as the start epoch directly, overriding the
+    `now - total_bars * tf_ms` calculation (useful for fixed start-date fetches).
     """
     all_rows = []
-    # Calculate `since` for total_bars ago and walk forwards
     tf_ms = {
         "4h": 4 * 3600 * 1000,
         "1h": 3600 * 1000,
         "1d": 86400 * 1000,
     }.get(timeframe, 3600 * 1000)
-    since = int(time.time() * 1000) - total_bars * tf_ms
+    since = since_ms if since_ms is not None else int(time.time() * 1000) - total_bars * tf_ms
 
     remaining = total_bars
     cursor = since
@@ -85,7 +94,106 @@ def fetch_ohlcv_paginated(exchange: ccxt.Exchange, symbol: str, timeframe: str,
     return df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
 
 
-def fetch_symbol(base: str, exchange_name: str, force: bool) -> dict:
+_TF_TO_COINAPI = {"4h": "4HRS", "1d": "1DAY"}
+_TF_TO_CC      = {"4h": "histohour", "1d": "histoday"}
+_TF_AGG        = {"4h": 4, "1d": 1}   # CryptoCompare aggregate multiplier
+
+
+def _ohlcv_from_rows(rows: list, ts_col: str = "timestamp") -> pd.DataFrame:
+    df = pd.DataFrame(rows)
+    df[ts_col] = pd.to_datetime(df[ts_col], utc=True)
+    return df.drop_duplicates(ts_col).sort_values(ts_col).reset_index(drop=True)
+
+
+def fetch_ohlcv_coinapi(symbol: str, timeframe: str,
+                         since_ms: int, api_key: str) -> pd.DataFrame:
+    """
+    Fetch OHLCV from CoinAPI REST (free tier: 100 req/day, 1 yr history on free plan).
+    symbol e.g. 'ETH', timeframe '4h' or '1d'.
+    Returns DataFrame with columns: timestamp, open, high, low, close, volume.
+    """
+    if _requests is None:
+        return pd.DataFrame()
+    period = _TF_TO_COINAPI.get(timeframe)
+    if period is None:
+        return pd.DataFrame()
+    start = datetime.fromtimestamp(since_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    url = (f"https://rest.coinapi.io/v1/ohlcv/BINANCE_SPOT_{symbol}_USDT/history"
+           f"?period_id={period}&time_start={start}&limit=100000")
+    headers = {"X-CoinAPI-Key": api_key}
+    rows = []
+    try:
+        r = _requests.get(url, headers=headers, timeout=30)
+        r.raise_for_status()
+        for bar in r.json():
+            rows.append({
+                "timestamp": bar["time_period_start"],
+                "open": bar["price_open"], "high": bar["price_high"],
+                "low": bar["price_low"],  "close": bar["price_close"],
+                "volume": bar["volume_traded"],
+            })
+    except Exception as e:
+        print(f"    CoinAPI error: {e}")
+        return pd.DataFrame()
+    if not rows:
+        return pd.DataFrame()
+    return _ohlcv_from_rows(rows)
+
+
+def fetch_ohlcv_cryptocompare(symbol: str, timeframe: str,
+                               since_ms: int, api_key: str = "") -> pd.DataFrame:
+    """
+    Fetch OHLCV from CryptoCompare (free, 2000 bars/request, paginated).
+    symbol e.g. 'ETH', timeframe '4h' or '1d'.
+    """
+    if _requests is None:
+        return pd.DataFrame()
+    endpoint = _TF_TO_CC.get(timeframe)
+    agg      = _TF_AGG.get(timeframe, 1)
+    if endpoint is None:
+        return pd.DataFrame()
+    tf_sec = 3600 * agg if timeframe == "4h" else 86400
+    all_rows = []
+    toTs = int(time.time())
+    since_s = since_ms // 1000
+    headers = {"authorization": f"Apikey {api_key}"} if api_key else {}
+    while True:
+        params = {"fsym": symbol, "tsym": "USDT", "aggregate": agg,
+                  "limit": 2000, "toTs": toTs, "e": "Binance"}
+        try:
+            r = _requests.get(f"https://min-api.cryptocompare.com/data/{endpoint}",
+                              params=params, headers=headers, timeout=30)
+            r.raise_for_status()
+            data = r.json().get("Data", [])
+        except Exception as e:
+            print(f"    CryptoCompare error: {e}")
+            break
+        if not data:
+            break
+        page_rows = []
+        for bar in data:
+            if bar["time"] < since_s:
+                continue
+            page_rows.append({
+                "timestamp": pd.Timestamp(bar["time"], unit="s", tz="UTC"),
+                "open": bar["open"], "high": bar["high"],
+                "low": bar["low"],   "close": bar["close"],
+                "volume": bar["volumeto"],
+            })
+        all_rows = page_rows + all_rows
+        earliest = data[0]["time"]
+        if earliest <= since_s:
+            break
+        toTs = earliest - tf_sec
+        time.sleep(0.2)
+    if not all_rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(all_rows)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    return df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
+
+
+def fetch_symbol(base: str, exchange_name: str, force: bool, since_ms: int = None) -> dict:
     """Fetch 4h and 1d data for one base symbol. Returns {tf: path} for files written."""
     os.makedirs(DATA_DIR, exist_ok=True)
     symbol = f"{base}/USDT"
@@ -124,12 +232,36 @@ def fetch_symbol(base: str, exchange_name: str, force: bool) -> dict:
             try:
                 ex_b = _make_exchange("binance")
                 ex_b.load_markets()
-                df_b = fetch_ohlcv_paginated(ex_b, symbol, tf, total_bars=limit)
+                df_b = fetch_ohlcv_paginated(ex_b, symbol, tf, total_bars=limit, since_ms=since_ms)
                 if len(df_b) > len(df):
                     df = df_b
                     print(f"  [{base}/{tf}] Binance returned {len(df)} bars")
             except Exception as e2:
                 print(f"  [{base}/{tf}] Binance fallback error: {e2}")
+
+        # Fallback 2: CryptoCompare (free, no key needed for Binance data)
+        if len(df) < limit * 0.8 and since_ms is not None:
+            print(f"  [{base}/{tf}] Trying CryptoCompare fallback...")
+            try:
+                cc_key = os.environ.get("CRYPTOCOMPARE_API_KEY", "")
+                df_cc = fetch_ohlcv_cryptocompare(base, tf, since_ms, api_key=cc_key)
+                if len(df_cc) > len(df):
+                    df = df_cc
+                    print(f"  [{base}/{tf}] CryptoCompare returned {len(df)} bars")
+            except Exception as e3:
+                print(f"  [{base}/{tf}] CryptoCompare error: {e3}")
+
+        # Fallback 3: CoinAPI (requires COINAPI_KEY env var)
+        coinapi_key = os.environ.get("COINAPI_KEY", "")
+        if len(df) < limit * 0.8 and since_ms is not None and coinapi_key:
+            print(f"  [{base}/{tf}] Trying CoinAPI fallback...")
+            try:
+                df_ca = fetch_ohlcv_coinapi(base, tf, since_ms, api_key=coinapi_key)
+                if len(df_ca) > len(df):
+                    df = df_ca
+                    print(f"  [{base}/{tf}] CoinAPI returned {len(df)} bars")
+            except Exception as e4:
+                print(f"  [{base}/{tf}] CoinAPI error: {e4}")
 
         if df.empty:
             print(f"  [{base}/{tf}] ERROR: No data returned. Skipping.")
@@ -151,7 +283,14 @@ def main():
                         help="Primary exchange to fetch from (default: phemex)")
     parser.add_argument("--force",    action="store_true",
                         help="Re-download even if CSV already exists")
+    parser.add_argument("--since",    default=None, metavar="YYYY-MM-DD",
+                        help="Fetch from this UTC date. Overrides LIMITS lookback window.")
     args = parser.parse_args()
+
+    since_ms = None
+    if args.since:
+        since_ms = int(pd.Timestamp(args.since, tz="UTC").timestamp() * 1000)
+        print(f"Fetching from {args.since} (epoch {since_ms})")
 
     print(f"Fetching data from {args.exchange} for: {args.symbols}")
     print(f"Output dir: {DATA_DIR}\n")
@@ -159,7 +298,7 @@ def main():
     total_written = 0
     for base in args.symbols:
         print(f"--- {base}/USDT ---")
-        written = fetch_symbol(base, args.exchange, args.force)
+        written = fetch_symbol(base, args.exchange, args.force, since_ms=since_ms)
         total_written += len(written)
 
     print(f"\nDone. {total_written} file(s) written/verified in {DATA_DIR}/")
