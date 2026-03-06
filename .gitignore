@@ -85,3 +85,8 @@ temp/
 *.tmp
 *.bak
 *~
+
+# Encrypted state files (security - never commit encrypted artifacts)
+*.enc
+*_state.json.enc
+*_fills_state.json.enc
