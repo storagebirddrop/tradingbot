@@ -44,7 +44,9 @@ dev = [
     "pytest-cov>=2.0",
     "black>=21.0",
     "flake8>=3.8",
+    "flake8-pyproject>=1.2.0",
     "mypy>=0.800",
+    "pre-commit>=2.0",
 ]
 docker = [
     "docker>=5.0",

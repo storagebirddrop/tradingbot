@@ -18,7 +18,7 @@ def report_from_paper(trades_log: str):
     print(f"Win rate         : {winrate:.1f}%")
     print(f"Realized PnL     : {realized:+.6f}")
     if len(sells):
-        print("\\n=== Realized PnL by symbol ===")
+        print("\n=== Realized PnL by symbol ===")
         print(sells.groupby("symbol")["pnl"].sum().sort_values(ascending=False).to_string())
 
 def report_from_fills(fills_log: str):
@@ -41,7 +41,7 @@ def report_from_fills(fills_log: str):
     print(f"Win rate (sells) : {winrate:.1f}%")
     print(f"Realized PnL     : {realized:+.6f} USDT")
 
-    print("\\n=== Realized PnL by symbol ===")
+    print("\n=== Realized PnL by symbol ===")
     print(df.groupby("symbol")["realized_delta_usdt"].sum().sort_values(ascending=False).to_string())
 
 def main():

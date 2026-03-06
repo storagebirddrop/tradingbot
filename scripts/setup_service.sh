@@ -7,7 +7,7 @@ set -e
 echo "Setting up tradingbot systemctl service..."
 
 # Copy service file to systemd
-sudo cp tradingbot.service /etc/systemd/system/
+sudo cp ./tradingbot.service /etc/systemd/system/
 
 # Reload systemd daemon
 sudo systemctl daemon-reload

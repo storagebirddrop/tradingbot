@@ -62,6 +62,54 @@ The strategy is implemented as `volume_reversal_strategy` in the configuration:
 }
 ```
 
+### Risk Management Parameters
+
+#### risk_per_trade
+- **Purpose**: Maximum risk per individual trade (as percentage of total portfolio)
+- **Range**: 0.01 - 0.05 (1% - 5%)
+- **Example**: With $10,000 portfolio and risk_per_trade=0.02:
+  - Maximum risk: $200 per trade
+  - With 2% stop loss: Position size = $200 / 0.02 = $10,000
+  - ⚠️ **CAUTION**: This represents 100% portfolio exposure and conflicts with max_portfolio_exposure=0.25
+  - **Corrected**: Apply max_portfolio_exposure cap: $10,000 × 0.25 = $2,500 position size
+  - **Final**: Trade $2,500 with 8% stop loss to maintain $200 risk within 25% portfolio limit
+
+#### stop_pct & trail_pct
+- **stop_pct**: Initial stop loss percentage (typically 2-3%)
+- **trail_pct**: Trailing stop distance (typically 2-3%)
+- **Example**: stop_pct=0.02, trail_pct=0.02:
+  - Enter at $100, stop at $98 (2% below)
+  - Price moves to $105, stop trails to $103
+  - Price moves to $110, stop trails to $108
+
+#### max_positions & max_position_pct
+- **max_positions**: Maximum concurrent trades
+- **max_position_pct**: Maximum size per position
+- **Example**: max_positions=3, max_position_pct=0.15:
+  - Maximum 3 trades at once
+  - Each trade max 15% of portfolio
+  - Total maximum exposure: 45%
+
+---
+
+## ⚠️ Risk Disclaimer
+
+### Backtest vs Live Trading Differences
+
+**Important**: Backtest results may not accurately reflect live trading performance due to:
+
+1. **Market Impact**: Backtest assumes ideal execution without slippage
+2. **Latency**: Real-world network and exchange delays affect execution
+3. **Liquidity**: Market conditions may prevent fills at expected prices
+4. **Technical Issues**: Exchange API errors, network interruptions
+5. **Emotional Factors**: Real money vs paper trading psychology
+
+**Risk Adjustment Recommendations**:
+- Reduce `risk_per_trade` by 25-50% for live trading
+- Use wider stop losses in live markets (increase `stop_pct`)
+- Start with 50% of recommended position sizes
+- Monitor live performance for 1-2 weeks before scaling up
+
 ---
 
 ## 🔄 Strategy Switching
@@ -70,7 +118,7 @@ The strategy is implemented as `volume_reversal_strategy` in the configuration:
 
 | Strategy | Status | Use Case | Performance |
 |----------|--------|----------|-------------|
-| **Optimized Momentum** | ✅ **ACTIVE** | Primary strategy | 234.6% annual |
+| **Optimized Momentum** | ✅ **PRODUCTION READY** | Primary strategy | 234.6% annual |
 | Mean Reversion | ❌ Retired | Low volatility markets | Poor performance |
 | Volume Reversal | ❌ Retired | Range-bound markets | Negative returns |
 | Breakout | ❌ Retired | Trending markets | No signals |
@@ -119,7 +167,7 @@ The strategy uses a 3/6 signal requirement for entry:
     "max_holding_periods": 24,     // Maximum holding periods (hours)
     "volume_ratio_threshold": 1.2,  // Volume confirmation threshold
     "rsi_threshold": 45,           // RSI threshold for entry
-    "risk_per_trade": 0.08         // Risk per trade (4% effective with 2x leverage)
+    "risk_per_trade": 0.02         // Risk per trade (2% of portfolio)
   }
 }
 ```
@@ -133,7 +181,7 @@ The strategy uses a 3/6 signal requirement for entry:
   "take_profit_pct": 0.10,      // Smaller targets
   "volume_ratio_threshold": 1.5,  // Higher volume requirement
   "rsi_threshold": 40,           // More conservative RSI
-  "risk_per_trade": 0.06         // Lower risk per trade
+  "risk_per_trade": 0.01         // Lower risk per trade (1% of portfolio)
 }
 ```
 
@@ -144,7 +192,7 @@ The strategy uses a 3/6 signal requirement for entry:
   "take_profit_pct": 0.20,      // Larger targets
   "volume_ratio_threshold": 1.0,  // Lower volume requirement
   "rsi_threshold": 50,           // More relaxed RSI
-  "risk_per_trade": 0.10         // Higher risk per trade
+  "risk_per_trade": 0.03         // Higher risk per trade (3% of portfolio)
 }
 ```
 

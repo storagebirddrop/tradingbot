@@ -53,6 +53,8 @@ services:
       - ./paper_state.json.enc:/app/paper_state.json.enc
     networks:
       - tradingbot
+    profiles:
+      - paper
 
   bot-testnet:
     build: .
@@ -332,7 +334,7 @@ if [ -z "$BOT_PID" ]; then
 fi
 
 # Check for errors
-ERROR_COUNT=$(grep -c "ERROR" bot.log | tail -1)
+ERROR_COUNT="$(grep -c "ERROR" bot.log)"
 if [ "$ERROR_COUNT" -gt 10 ]; then
     echo "High error count detected: $ERROR_COUNT"
     # Send alert

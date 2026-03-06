@@ -209,11 +209,13 @@ def calculate_vwap(df: pd.DataFrame, length: int = 20) -> tuple:
     vwap = typical_price * df['volume']
     vwap_cumsum = vwap.rolling(window=length).sum()
     volume_cumsum = df['volume'].rolling(window=length).sum()
-    vwap_avg = vwap_cumsum / volume_cumsum
+    
+    # Guard against division by zero
+    vwap_avg = vwap_cumsum / volume_cumsum.replace(0, np.nan)
     
     # VWAP standard deviation bands
     variance = ((typical_price - vwap_avg) ** 2 * df['volume']).rolling(window=length).sum()
-    std_dev = np.sqrt(variance / volume_cumsum)
+    std_dev = np.sqrt(variance / volume_cumsum.replace(0, np.nan))
     
     vwap_upper = vwap_avg + (std_dev * 2)
     vwap_lower = vwap_avg - (std_dev * 2)
@@ -287,7 +289,7 @@ def rsi_momentum_pullback_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
     Momentum confirmation: 2-of-3 must fire:
       1. MACD histogram turning up
       2. ImpulseMACD == 1 (histogram positive AND accelerating)
-      3. StochRSI K < 0.3 (oversold stochastic)
+      3. StochRSI K < 30 (oversold stochastic)
     """
     above_sma200  = sig["close"] > sig["sma200_4h"]
     trend_exists  = sig["adx"] > 20
