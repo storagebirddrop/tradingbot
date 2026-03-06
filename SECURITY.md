@@ -26,7 +26,22 @@ export TRADING_BOT_ENCRYPTION_KEY_TESTNET="your_testnet_key_here"
 export TRADING_BOT_ENCRYPTION_KEY_LIVE="your_live_key_here"
 ```
 
-#### **3. Key Rotation Schedule**
+#### **3. Testnet State Management**
+```bash
+# Generate testnet state dynamically
+python3 scripts/testnet_fills_manager.py generate 10000
+
+# Add fills to testnet state
+python3 scripts/testnet_fills_manager.py add_fill '{"symbol":"BTC/USDT","side":"buy","amount":0.1,"price":50000,"fee":5.0}'
+
+# Get testnet fills summary
+python3 scripts/testnet_fills_manager.py summary
+
+# Load testnet state
+python3 scripts/testnet_fills_manager.py load
+```
+
+#### **4. Key Rotation Schedule**
 ```bash
 # Rotate keys quarterly or when compromised
 python3 scripts/secure_state.py rotate local_paper
