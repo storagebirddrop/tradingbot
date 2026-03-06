@@ -290,8 +290,13 @@ def run_loop(cfg: dict, broker, market_exchange):
                             fixed_stop = px * (1.0 - fixed_stop_pct)
                             if not math.isnan(atr_stop) and atr_stop < px and atr_stop > fixed_stop:
                                 computed_stop_px = atr_stop  # ATR tighter than fixed — use it
+                            strategy_stop_pct = fixed_stop_pct  # Pass strategy-specific stop loss as fallback
+                        else:
+                            # When not using ATR, still get strategy-specific stop loss for broker
+                            strategy_stop_pct = float(sym_strategy_cfg.get(
+                                "stop_loss_pct", cfg.get("stop_pct", 0.04)))
                         broker.buy(sym, px, "signal_entry", price_map,
-                                   stop_px=computed_stop_px, size_scale=size_scale)
+                                   stop_px=computed_stop_px, size_scale=size_scale, strategy_stop_pct=strategy_stop_pct)
 
         if loop % int(cfg["equity_log_every_n_loops"]) == 0:
             broker.snapshot_equity(price_map)
