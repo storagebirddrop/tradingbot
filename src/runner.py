@@ -3,8 +3,11 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from strategy import timeframe_seconds, entry_signal, exit_signal
-from brokers import get_latest_signal_rows, get_current_tf_open_ts
+import math
+from .strategy import (timeframe_seconds, entry_signal, exit_signal,
+                      compute_atr_stop, classify_volatility_regime)
+from .brokers import get_latest_signal_rows, get_current_tf_open_ts
+from .signal_filter import init_filter
 
 # Configure logging
 logging.basicConfig(
@@ -54,6 +57,9 @@ COOLDOWN_RESET_VALUE = -10**18  # Far past timestamp to reset cooldowns
 
 def run_loop(cfg: dict, broker, market_exchange):
     logger.info(f"Starting bot loop with {len(cfg['symbols'])} symbols")
+    signal_filter = init_filter(cfg)
+    if signal_filter.is_enabled():
+        logger.info("Signal filter ENABLED (LightGBM)")
     tf_sec = timeframe_seconds(cfg["signal_timeframe"])
     last_tf_open: Dict[str, Optional[int]] = {s: None for s in cfg["symbols"]}
     cooldown_until: Dict[str, int] = {s: COOLDOWN_RESET_VALUE for s in cfg["symbols"]}
@@ -233,7 +239,7 @@ def run_loop(cfg: dict, broker, market_exchange):
                             cooldown_until[sym] = candle_idx + int(cfg.get("cooldown_candles", 0))
                         continue
 
-                if has_pos and exit_signal(sig, strategy=sym_strategy):
+                if has_pos and exit_signal(sig, strategy=sym_strategy, params=sym_strategy_cfg):
                     if broker.sell(sym, px, "signal_exit", price_map):
                         cooldown_until[sym] = candle_idx + int(cfg.get("cooldown_candles", 0))
                     continue
@@ -244,8 +250,53 @@ def run_loop(cfg: dict, broker, market_exchange):
                     continue
                 regime_ok = risk_on or ignore_regime
                 if (not has_pos) and regime_ok and broker.can_open_new():
-                    if entry_signal(sig, prev_sig, strategy=sym_strategy):
-                        broker.buy(sym, px, "signal_entry", price_map)
+                    # Fetch funding rate (fail-open: None disables the filter)
+                    funding_rate = None
+                    funding_cfg = cfg.get("funding_filter", {})
+                    if funding_cfg.get("enabled", False):
+                        try:
+                            funding_rate = broker.fetch_funding_rate(sym)
+                            if funding_rate is not None:
+                                logger.info(f"FUNDING_RATE {sym} rate={funding_rate:.6f}")
+                                block_above = float(funding_cfg.get("block_long_above", 0.0005))
+                                if funding_rate > block_above:
+                                    logger.info(f"FUNDING_BLOCKED {sym} rate={funding_rate:.6f} > threshold={block_above:.6f}")
+                            else:
+                                logger.debug(f"FUNDING_UNAVAILABLE {sym} (no perpetual or fetch failed — filter bypassed)")
+                        except Exception:
+                            pass
+
+                    if entry_signal(sig, prev_sig, strategy=sym_strategy,
+                                    funding_rate=funding_rate, params=sym_strategy_cfg):
+                        # ML signal quality gate (no-op when filter disabled or model missing)
+                        if not signal_filter.should_enter(sig, sym_strategy):
+                            score = signal_filter.score_signal(sig, sym_strategy)
+                            logger.info(f"SIGNAL_FILTERED {sym} strategy={sym_strategy} score={score:.3f} < threshold={signal_filter._threshold:.3f}")
+                            continue
+                        # ATR-scaled stop and vol-regime-aware position sizing
+                        computed_stop_px = None
+                        size_scale = 1.0
+                        use_atr = bool(cfg.get("use_atr_sizing", False))
+                        atr_mult = float(cfg.get("atr_stop_multiplier", 2.0))
+                        vol_regime = classify_volatility_regime(sig)
+                        vol_regime_params = cfg.get("vol_regime_params", {}).get(vol_regime, {})
+                        if vol_regime_params:
+                            atr_mult = float(vol_regime_params.get("stop_multiplier", atr_mult))
+                            size_scale = float(vol_regime_params.get("size_scale", size_scale))
+                        if use_atr:
+                            atr_stop = compute_atr_stop(sig, multiplier=atr_mult)
+                            fixed_stop_pct = float(sym_strategy_cfg.get(
+                                "stop_loss_pct", cfg.get("stop_pct", 0.04)))
+                            fixed_stop = px * (1.0 - fixed_stop_pct)
+                            if not math.isnan(atr_stop) and atr_stop < px and atr_stop > fixed_stop:
+                                computed_stop_px = atr_stop  # ATR tighter than fixed — use it
+                            strategy_stop_pct = fixed_stop_pct  # Pass strategy-specific stop loss as fallback
+                        else:
+                            # When not using ATR, still get strategy-specific stop loss for broker
+                            strategy_stop_pct = float(sym_strategy_cfg.get(
+                                "stop_loss_pct", cfg.get("stop_pct", 0.04)))
+                        broker.buy(sym, px, "signal_entry", price_map,
+                                   stop_px=computed_stop_px, size_scale=size_scale, strategy_stop_pct=strategy_stop_pct)
 
         if loop % int(cfg["equity_log_every_n_loops"]) == 0:
             broker.snapshot_equity(price_map)

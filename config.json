@@ -38,6 +38,22 @@
       "api_error_window_sec": 120,
       "api_error_threshold": 12,
       "api_kill_cooldown_sec": 300,
+      "use_atr_sizing": true,
+      "atr_stop_multiplier": 2.0,
+      "funding_filter": {
+        "enabled": false,
+        "block_long_above": 0.0005,
+        "mean_rev_signal_below": -0.0001
+      },
+      "vol_regime_params": {
+        "high": { "stop_multiplier": 2.5, "size_scale": 0.7 },
+        "normal": { "stop_multiplier": 2.0, "size_scale": 1.0 },
+        "low":  { "stop_multiplier": 1.5, "size_scale": 1.0 }
+      },
+      "signal_filter": {
+        "enabled": false,
+        "threshold": 0.55
+      },
       "poll_seconds": 20,
       "status_every_n_loops": 3,
       "limit_4h": 800,
@@ -117,6 +133,22 @@
       "api_error_window_sec": 120,
       "api_error_threshold": 12,
       "api_kill_cooldown_sec": 300,
+      "use_atr_sizing": true,
+      "atr_stop_multiplier": 2.0,
+      "funding_filter": {
+        "enabled": true,
+        "block_long_above": 0.0005,
+        "mean_rev_signal_below": -0.0001
+      },
+      "vol_regime_params": {
+        "high": { "stop_multiplier": 2.5, "size_scale": 0.7 },
+        "normal": { "stop_multiplier": 2.0, "size_scale": 1.0 },
+        "low":  { "stop_multiplier": 1.5, "size_scale": 1.0 }
+      },
+      "signal_filter": {
+        "enabled": false,
+        "threshold": 0.55
+      },
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
@@ -199,6 +231,22 @@
       "api_error_window_sec": 120,
       "api_error_threshold": 12,
       "api_kill_cooldown_sec": 300,
+      "use_atr_sizing": true,
+      "atr_stop_multiplier": 2.0,
+      "funding_filter": {
+        "enabled": true,
+        "block_long_above": 0.0005,
+        "mean_rev_signal_below": -0.0001
+      },
+      "vol_regime_params": {
+        "high": { "stop_multiplier": 2.5, "size_scale": 0.7 },
+        "normal": { "stop_multiplier": 2.0, "size_scale": 1.0 },
+        "low":  { "stop_multiplier": 1.5, "size_scale": 1.0 }
+      },
+      "signal_filter": {
+        "enabled": false,
+        "threshold": 0.55
+      },
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,

@@ -39,6 +39,7 @@ def compute_4h_indicators(df4h: pd.DataFrame) -> pd.DataFrame:
     d["volume_ratio"] = np.where(d["volume_sma"] != 0, d["volume"] / d["volume_sma"], 0)
     d["price_change"] = d["close"].pct_change()
     d["volatility"] = d["price_change"].rolling(window=20).std()
+    d["volatility_sma50"] = d["volatility"].rolling(window=50).mean()
     
     # Enhanced Volume Indicators
     d["volume_ema"] = ta.ema(d["volume"], length=20)
@@ -282,7 +283,7 @@ def classify_market_type(df: pd.DataFrame, lookback_days: int = 5) -> str:
     else:
         return "transition"
 
-def rsi_momentum_pullback_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+def rsi_momentum_pullback_signal(sig: pd.Series, prev_sig: pd.Series, funding_rate=None, params: dict = None) -> bool:
     """
     Buy-the-dip in an established uptrend.
     Mandatory: price above SMA200 (uptrend only) AND ADX > 20 AND RSI 25-45.
@@ -290,33 +291,60 @@ def rsi_momentum_pullback_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
       1. MACD histogram turning up
       2. ImpulseMACD == 1 (histogram positive AND accelerating)
       3. StochRSI K < 30 (oversold stochastic)
+    Optional: funding_rate filter blocks entry when perpetual funding is too crowded.
     """
+    params = params or {}
     above_sma200  = sig["close"] > sig["sma200_4h"]
-    trend_exists  = sig["adx"] > 20
+    trend_exists  = sig["adx"] > float(params.get("adx_threshold", 20))
     rsi_val       = sig["rsi"]
-    pulled_back   = 25 < rsi_val < 45
+    rsi_lower     = float(params.get("rsi_lower", 25))
+    rsi_upper     = float(params.get("rsi_upper", 45))
+    pulled_back   = rsi_lower < rsi_val < rsi_upper
 
     macd_turning_up   = sig["MACDh_12_26_9"] > prev_sig["MACDh_12_26_9"]
     impulse_firing    = sig["impulse_macd"] == 1
     stochrsi_oversold = sig["stochrsi_k"] < 30
 
     momentum_score = sum([macd_turning_up, impulse_firing, stochrsi_oversold])
-    return above_sma200 and trend_exists and pulled_back and momentum_score >= 2
+    if not (above_sma200 and trend_exists and pulled_back and momentum_score >= 2):
+        return False
+
+    # Funding rate filter: block entry when longs are too crowded
+    if funding_rate is not None:
+        block_above = float(params.get("funding_block_long_above", 0.0005))
+        if funding_rate > block_above:
+            return False
+
+    return True
 
 
-def vwap_band_bounce_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+def vwap_band_bounce_signal(sig: pd.Series, prev_sig: pd.Series, funding_rate=None, params: dict = None) -> bool:
     """
     Mean reversion when price hits VWAP lower band (-2σ).
     Entry: price below vwap_lower AND RSI < 40 AND MFI < 35.
     Works in ranging/volatile markets where trend-following fails.
+    Optional: funding_rate filter — negative funding (shorts crowded) is a positive signal.
     """
-    below_band = sig["close"] < sig["vwap_lower"]
-    rsi_oversold = sig["rsi"] < 40
-    mfi_oversold = sig["mfi"] < 35
-    return below_band and rsi_oversold and mfi_oversold
+    params = params or {}
+    rsi_threshold = float(params.get("rsi_threshold", 40))
+    mfi_threshold = float(params.get("mfi_threshold", 35))
+    below_band   = sig["close"] < sig["vwap_lower"]
+    rsi_oversold = sig["rsi"] < rsi_threshold
+    mfi_oversold = sig["mfi"] < mfi_threshold
+    if not (below_band and rsi_oversold and mfi_oversold):
+        return False
+
+    # For mean reversion: negative funding (shorts crowded) is a positive confluence signal
+    # Block if funding is extremely positive (shorts are already squeezed out)
+    if funding_rate is not None:
+        mean_rev_block_above = float(params.get("funding_block_long_above", 0.0005))
+        if funding_rate > mean_rev_block_above:
+            return False
+
+    return True
 
 
-def obv_breakout_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
+def obv_breakout_signal(sig: pd.Series, prev_sig: pd.Series, funding_rate=None, params: dict = None) -> bool:
     """
     OBV accumulation confirmed breakout.
     Entry: OBV above its SMA (upward volume trend) AND bullish OBV divergence AND
@@ -324,32 +352,122 @@ def obv_breakout_signal(sig: pd.Series, prev_sig: pd.Series) -> bool:
     Trend-following strategy with highest R:R target.
     Note: Supertrend gate was tested and found to hurt returns on TRX/ETH by blocking
     valid early-trend entries — omitted intentionally.
+    Optional: funding_rate filter blocks entry when perpetual longs are too crowded.
     """
+    params = params or {}
+    vol_threshold = float(params.get("volume_ratio_threshold", 1.3))
     obv_trending = sig["obv"] > sig["obv_sma"]
     accumulation = sig["obv_divergence"] == 1
     green_candle = sig["close"] > prev_sig["close"]
-    volume_confirming = sig["volume_ratio"] > 1.3
-    return obv_trending and accumulation and green_candle and volume_confirming
+    volume_confirming = sig["volume_ratio"] > vol_threshold
+    if not (obv_trending and accumulation and green_candle and volume_confirming):
+        return False
+
+    # Funding rate filter: block entry when perpetual longs are overcrowded
+    if funding_rate is not None:
+        block_above = float(params.get("funding_block_long_above", 0.0005))
+        if funding_rate > block_above:
+            return False
+
+    return True
 
 
-def entry_signal(sig: pd.Series, prev_sig: pd.Series, strategy: str = "rsi_momentum_pullback") -> bool:
+def entry_signal(sig: pd.Series, prev_sig: pd.Series, strategy: str = "rsi_momentum_pullback",
+                 funding_rate=None, params: dict = None) -> bool:
     """Dispatch entry signal by strategy name."""
     if strategy == "rsi_momentum_pullback":
-        return rsi_momentum_pullback_signal(sig, prev_sig)
+        return rsi_momentum_pullback_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
     elif strategy == "vwap_band_bounce":
-        return vwap_band_bounce_signal(sig, prev_sig)
+        return vwap_band_bounce_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
     elif strategy == "obv_breakout":
-        return obv_breakout_signal(sig, prev_sig)
+        return obv_breakout_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
     return False
 
 
-def exit_signal(sig: pd.Series, strategy: str = "rsi_momentum_pullback") -> bool:
+def exit_signal(sig: pd.Series, strategy: str = "rsi_momentum_pullback", params: dict = None) -> bool:
     """Dispatch exit signal by strategy name."""
+    params = params or {}
     if strategy == "rsi_momentum_pullback":
-        return sig["rsi"] > 68
+        return sig["rsi"] > float(params.get("rsi_exit", 68))
     elif strategy == "vwap_band_bounce":
         return sig["close"] >= sig["vwap"]
     elif strategy == "obv_breakout":
         # Require both OBV trend broken AND MACD histogram negative to avoid whipsaws
         return sig["obv"] < sig["obv_sma"] and sig["MACDh_12_26_9"] < 0
     return False
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 1: ATR-based stop price
+# ---------------------------------------------------------------------------
+
+def compute_atr_stop(sig: pd.Series, multiplier: float = 2.0) -> float:
+    """
+    Compute a volatility-scaled stop price using ATR.
+
+    Returns entry_price - (multiplier * ATR). The caller should compare this
+    against the fixed-pct stop and take the less-risky (higher) value so the
+    ATR stop only *tightens* the stop when volatility is low, never widens it
+    beyond the hard-coded maximum risk.
+
+    Returns NaN if ATR is unavailable or non-positive.
+    """
+    atr = sig.get("atr", float("nan"))
+    close = sig.get("close", float("nan"))
+    try:
+        atr = float(atr)
+        close = float(close)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not (atr > 0 and close > 0):
+        return float("nan")
+    return close - multiplier * atr
+
+
+# ---------------------------------------------------------------------------
+# Enhancement 4: Volatility regime classification
+# ---------------------------------------------------------------------------
+
+def classify_volatility_regime(sig: pd.Series, vol_sma_col: str = "volatility") -> str:
+    """
+    Classify current volatility regime as 'high', 'normal', or 'low'.
+
+    Uses the rolling 20-bar std of price returns already present in sig
+    ('volatility' column from compute_4h_indicators). Compares the current
+    reading against the 50-bar mean embedded in the signal row via
+    'volatility_sma50' if available, otherwise falls back to a 1.5x / 0.7x
+    threshold of an assumed baseline.
+
+    Returns 'high' | 'normal' | 'low'.
+    """
+    vol = sig.get(vol_sma_col, None)
+    vol_sma = sig.get("volatility_sma50", None)
+
+    try:
+        vol = float(vol) if vol is not None else None
+    except (TypeError, ValueError):
+        vol = None
+
+    try:
+        vol_sma = float(vol_sma) if vol_sma is not None else None
+    except (TypeError, ValueError):
+        vol_sma = None
+
+    if vol is None or vol != vol:  # None or NaN
+        return "normal"
+
+    if vol_sma is not None and vol_sma > 0:
+        ratio = vol / vol_sma
+        if ratio > 1.5:
+            return "high"
+        if ratio < 0.7:
+            return "low"
+        return "normal"
+
+    # Fallback: absolute thresholds (daily % std on 4h candles)
+    # 0.025 ≈ 2.5% std per 4h bar — roughly 95th percentile across BTC/ETH 2020-2025
+    if vol > 0.025:
+        return "high"
+    if vol < 0.008:
+        return "low"
+    return "normal"

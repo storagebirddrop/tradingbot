@@ -12,8 +12,8 @@ _cached_encryption_key = None
 import ccxt
 import pandas as pd
 
-from strategy import drop_incomplete_last_candle, compute_4h_indicators, compute_daily_regime, attach_regime_to_4h
-from reconcile import reconcile_fills, pnl_totals
+from .strategy import drop_incomplete_last_candle, compute_4h_indicators, compute_daily_regime, attach_regime_to_4h
+from scripts.reconcile import reconcile_fills, pnl_totals
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -231,6 +231,12 @@ class BaseBroker:
         return int(n)
     def log_event(self, event: str, details: str = "") -> None:
         return
+    def fetch_funding_rate(self, symbol: str) -> Optional[float]:
+        """Returns current perpetual funding rate or None if unavailable/not applicable."""
+        return None
+    def on_stop_updated(self, symbol: str, pos, new_stop_px: float, price_map: dict) -> None:
+        """Called when trailing stop is raised. Base implementation updates stop_px in-place."""
+        pos.stop_px = new_stop_px
 
 class PaperBroker(BaseBroker):
     def __init__(self, cfg: dict, market_exchange: ccxt.Exchange):
@@ -242,6 +248,14 @@ class PaperBroker(BaseBroker):
         self._last_prices: Dict[str, float] = {}
         ensure_csv(cfg["trade_log"], ["time_utc","symbol","side","qty","price","fee","slippage_bps","reason","cash_after","equity_after","pnl"])
         ensure_csv(cfg["equity_log"], ["time_utc","cash","equity","exposure","open_positions"])
+        self._equity_history: List[Tuple[str,float]] = []
+        self._fills_state: Dict[str,Any] = {}
+        if "fills_state_file" in cfg:
+            try:
+                with open(cfg["fills_state_file"], "r") as f:
+                    self._fills_state = json.load(f)
+            except FileNotFoundError:
+                pass
         self._restore()
 
     def _restore(self):
@@ -299,10 +313,26 @@ class PaperBroker(BaseBroker):
                 exp += p.qty * px
         return exp
 
-    def buy(self, symbol: str, px: float, reason: str, price_map: Dict[str,float]) -> bool:
+    def buy(self, symbol: str, px: float, reason: str, price_map: Dict[str,float],
+             stop_px: Optional[float] = None, size_scale: float = 1.0, strategy_stop_pct: Optional[float] = None) -> bool:
         eq = self.equity_usdt(price_map)
-        risk_amt = eq * float(self.cfg["risk_per_trade"])
-        stop_dist = px * float(self.cfg["stop_pct"])
+        risk_amt = eq * float(self.cfg["risk_per_trade"]) * size_scale
+        # Use provided stop_px if valid, otherwise fall back to strategy-specific stop_pct, then global stop_pct
+        if stop_px is not None:
+            if stop_px < px:
+                effective_stop = stop_px
+            else:
+                # Invalid stop_px (>= entry price) - log warning and fall back
+                print(f"Warning: Invalid stop_px ${stop_px:.2f} >= entry price ${px:.2f} for {symbol}. Falling back to strategy/global stop loss.")
+                if strategy_stop_pct is not None:
+                    effective_stop = px * (1 - strategy_stop_pct)
+                else:
+                    effective_stop = px * (1 - float(self.cfg["stop_pct"]))
+        elif strategy_stop_pct is not None:
+            effective_stop = px * (1 - strategy_stop_pct)
+        else:
+            effective_stop = px * (1 - float(self.cfg["stop_pct"]))
+        stop_dist = px - effective_stop
         if stop_dist <= 0: return False
         qty = min(risk_amt/stop_dist,
                   (eq*float(self.cfg["max_position_pct"]))/px,
@@ -313,7 +343,7 @@ class PaperBroker(BaseBroker):
         cost = qty*px + fee
         if cost > self.cash: return False
         self.cash -= cost
-        self._positions[symbol] = Position(qty=qty, entry_px=px, stop_px=px*(1-float(self.cfg["stop_pct"])), high_water=px, entry_time=now_iso())
+        self._positions[symbol] = Position(qty=qty, entry_px=px, stop_px=effective_stop, high_water=px, entry_time=now_iso())
         append_csv(self.cfg["trade_log"], [now_iso(), symbol, "BUY", qty, px, fee, self.cfg["slippage_bps"], reason, self.cash, self.equity_usdt(price_map), ""])
         return True
 
@@ -527,13 +557,37 @@ class ExchangeBroker(BaseBroker):
                 self.record_api_error("exchange.cancel_old_stop_after_replace")
             return new_id
 
-    def buy(self, symbol: str, px: float, reason: str, price_map: Dict[str,float]) -> bool:
+    def fetch_funding_rate(self, symbol: str) -> Optional[float]:
+        """Fetch current perpetual funding rate. Returns None on any error (fail-open)."""
+        try:
+            fr = self.ex.fetch_funding_rate(symbol)
+            rate = fr.get("fundingRate")
+            return float(rate) if rate is not None else None
+        except Exception:
+            return None
+
+    def buy(self, symbol: str, px: float, reason: str, price_map: Dict[str,float],
+             stop_px: Optional[float] = None, size_scale: float = 1.0, strategy_stop_pct: Optional[float] = None) -> bool:
         # size using risk model
         eq = self.equity_usdt(price_map)
-        risk_amt = eq * float(self.cfg["risk_per_trade"])
-        stop_dist = px * float(self.cfg["stop_pct"])
-        if stop_dist <= 0: return False
-        qty = min(risk_amt/stop_dist, (eq*float(self.cfg["max_position_pct"]))/px)
+        risk_amt = eq * float(self.cfg["risk_per_trade"]) * size_scale
+        # Use provided stop_px if valid, otherwise fall back to strategy-specific stop_pct, then global stop_pct
+        if stop_px is not None:
+            if stop_px < px:
+                effective_stop_dist = px - stop_px
+            else:
+                # Invalid stop_px (>= entry price) - log warning and fall back
+                print(f"Warning: Invalid stop_px ${stop_px:.2f} >= entry price ${px:.2f} for {symbol}. Falling back to strategy/global stop loss.")
+                if strategy_stop_pct is not None:
+                    effective_stop_dist = px * strategy_stop_pct
+                else:
+                    effective_stop_dist = px * float(self.cfg["stop_pct"])
+        elif strategy_stop_pct is not None:
+            effective_stop_dist = px * strategy_stop_pct
+        else:
+            effective_stop_dist = px * float(self.cfg["stop_pct"])
+        if effective_stop_dist <= 0: return False
+        qty = min(risk_amt/effective_stop_dist, (eq*float(self.cfg["max_position_pct"]))/px)
         qty = float(self.ex.amount_to_precision(symbol, qty))
         if qty <= 0: return False
 
@@ -552,25 +606,28 @@ class ExchangeBroker(BaseBroker):
         avg = float(buy_order.get("average") or px)
         append_csv(self.cfg["trade_log"], [now_iso(), symbol, "BUY", filled, px, "", reason, self.cfg.get("dry_run", True), buy_order.get("id",""), json.dumps(buy_order)[:1500]])
 
-        # hard stop + confirm
-        stop_px = avg * (1 - float(self.cfg["stop_pct"]))
+        # hard stop + confirm — use caller-supplied stop_px if valid, else fixed pct
+        if stop_px is not None and stop_px < avg:
+            stop_px_final = stop_px
+        else:
+            stop_px_final = avg * (1 - float(self.cfg["stop_pct"]))
         stop_id = None
         if bool(self.cfg.get("hard_stops", False)):
             try:
-                stop_id = self._create_hard_stop(symbol, filled, stop_px)
-                append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CREATED", filled, px, stop_px, "protective_stop", self.cfg.get("dry_run", True), stop_id, ""])
+                stop_id = self._create_hard_stop(symbol, filled, stop_px_final)
+                append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CREATED", filled, px, stop_px_final, "protective_stop", self.cfg.get("dry_run", True), stop_id, ""])
                 if not self._confirm_stop(symbol, stop_id):
-                    append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CONFIRM_FAILED_EXITING", filled, px, stop_px, "fail_closed", self.cfg.get("dry_run", True), stop_id, ""])
+                    append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CONFIRM_FAILED_EXITING", filled, px, stop_px_final, "fail_closed", self.cfg.get("dry_run", True), stop_id, ""])
                     self._cancel_hard_stop(symbol, stop_id)
                     if not bool(self.cfg.get("dry_run", True)):
                         self._guard()
                         self.ex.create_order(symbol, "market", "sell", filled)
                     return False
-                append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CONFIRMED", filled, px, stop_px, "ok", self.cfg.get("dry_run", True), stop_id, ""])
+                append_csv(self.cfg["trade_log"], [now_iso(), symbol, "STOP_CONFIRMED", filled, px, stop_px_final, "ok", self.cfg.get("dry_run", True), stop_id, ""])
             except Exception:
                 return False
 
-        self._positions[symbol] = Position(qty=filled, entry_px=avg, stop_px=stop_px, high_water=avg, entry_time=now_iso(), stop_order_id=stop_id)
+        self._positions[symbol] = Position(qty=filled, entry_px=avg, stop_px=stop_px_final, high_water=avg, entry_time=now_iso(), stop_order_id=stop_id)
         return True
 
     def sell(self, symbol: str, px: float, reason: str, price_map: Dict[str,float]) -> bool:
