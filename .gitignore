@@ -90,3 +90,24 @@ temp/
 *.enc
 *_state.json.enc
 *_fills_state.json.enc
+*_runtime_state.json.enc
+data/*.enc
+data/*_state.json.enc
+data/*_fills_state.json.enc
+data/*_runtime_state.json.enc
+
+# Local key storage (development only)
+.trading_bot_keys/
+
+# Additional security exclusions
+*.key
+*.pem
+*.p12
+*.pfx
+.env.local
+.env.production
+.env.live
+secrets/
+credentials/
+.key_store/
+encryption_keys/

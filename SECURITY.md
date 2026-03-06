@@ -1,11 +1,25 @@
 # 🔐 Security Policy for Trading Bot
 
-## **CRITICAL: ENCRYPTED STATE FILES**
+## **🚨 CRITICAL SECURITY INCIDENT RESPONSE**
+
+### **✅ COMPLETED: Encrypted File Cleanup (2026-03-06)**
+- **REMOVED**: `data/paper_state.json.enc` from git history
+- **METHOD**: `git filter-branch` with complete history scrub
+- **VERIFICATION**: Confirmed no encrypted files remain in any commit
+- **ACTION**: Enhanced .gitignore and security protocols
+
+### **🔒 NEW: Zero-Tolerance Policy**
+- **IMMEDIATE**: Any discovered encrypted files trigger history scrub
+- **MONITORING**: Pre-commit hooks to prevent encrypted file commits
+- **AUDITING**: Weekly scans for encrypted artifacts in repository
+
+## **🛡️ ENCRYPTED STATE FILE SECURITY**
 
 ### **❌ NEVER COMMIT ENCRYPTED FILES**
 - **NEVER** commit `*.enc` files to git history
 - **NEVER** store Fernet-encrypted artifacts in repository
-- **ALWAYS** use `.gitignore` patterns: `*.enc`, `*_state.json.enc`
+- **NEVER** include encryption keys in any repository files
+- **ALWAYS** use `.gitignore` patterns: `*.enc`, `*_state.json.enc`, `*_fills_state.json.enc`
 
 ### **✅ SECURE STATE MANAGEMENT**
 

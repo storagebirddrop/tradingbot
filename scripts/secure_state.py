@@ -1,211 +1,336 @@
 #!/usr/bin/env python3
 """
-Secure State Management for Trading Bot
-
-This script provides secure handling of trading bot state files:
-- Generates state dynamically instead of storing encrypted artifacts
-- Uses environment-based encryption keys
-- Implements proper key rotation
-- Never commits encrypted data to repository
-
-SECURITY PRINCIPLES:
-1. Never commit encrypted files to git history
-2. Use environment variables for encryption keys
-3. Generate state dynamically when needed
-4. Implement proper access controls
-5. Regular key rotation schedule
+Secure State Management Script
+Replaces encrypted state files with dynamic generation and environment-based keys
 """
 
 import os
-import json
 import sys
-from pathlib import Path
-from cryptography.fernet import Fernet
-from typing import Dict, Any, Optional
-import hashlib
+import json
+import argparse
 import base64
+from cryptography.fernet import Fernet
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional
 
-class SecureStateManager:
-    """Manages trading bot state securely without committing encrypted artifacts"""
+def get_encryption_key(profile: str) -> bytes:
+    """
+    Get encryption key from environment variables with fallback generation
+    Keys are stored per-profile to prevent cross-contamination
+    """
+    env_var = f"TRADING_BOT_ENCRYPTION_KEY_{profile.upper()}"
+    key_env = os.environ.get(env_var)
     
-    def __init__(self, profile: str = "local_paper"):
-        self.profile = profile
-        self.state_dir = Path("data")
-        self.state_dir.mkdir(exist_ok=True)
-        
-    def _get_encryption_key(self) -> bytes:
-        """
-        Generate encryption key from environment variables
-        Falls back to profile-specific key if env var not set
-        """
-        # Primary: Environment variable
-        env_key = os.getenv(f"TRADING_BOT_ENCRYPTION_KEY_{self.profile.upper()}")
-        if env_key:
-            return base64.urlsafe_b64decode(env_key.encode())
-        
-        # Secondary: Profile-specific key from system
-        key_source = f"trading_bot_{self.profile}_{os.getuid()}"
-        key_hash = hashlib.sha256(key_source.encode()).digest()
-        return base64.urlsafe_b64encode(key_hash[:32])
-    
-    def generate_state(self, initial_capital: float = 1000.0) -> Dict[str, Any]:
-        """Generate fresh state dynamically"""
-        return {
-            "profile": self.profile,
-            "initial_capital": initial_capital,
-            "current_capital": initial_capital,
-            "trades": [],
-            "positions": {},
-            "created_at": str(Path.cwd()),
-            "version": "1.0",
-            "security_note": "Generated dynamically - never commit encrypted state"
-        }
-    
-    def save_state(self, state: Dict[str, Any], encrypt: bool = True) -> str:
-        """
-        Save state with optional encryption
-        Returns the file path
-        """
-        state_file = self.state_dir / f"{self.profile}_state.json"
-        
-        if encrypt:
-            key = self._get_encryption_key()
-            fernet = Fernet(key)
-            
-            # Save state as JSON
-            json_data = json.dumps(state, indent=2)
-            encrypted_data = fernet.encrypt(json_data.encode())
-            
-            # Save encrypted data
-            encrypted_file = self.state_dir / f"{self.profile}_state.json.enc"
-            with open(encrypted_file, 'wb') as f:
-                f.write(encrypted_data)
-            
-            print(f"✅ State encrypted and saved to: {encrypted_file}")
-            print(f"⚠️  WARNING: Never commit {encrypted_file} to git!")
-            return str(encrypted_file)
-        else:
-            # Save unencrypted for development
-            with open(state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            
-            print(f"✅ State saved to: {state_file}")
-            return str(state_file)
-    
-    def load_state(self, encrypted: bool = True) -> Optional[Dict[str, Any]]:
-        """Load state from file"""
-        if encrypted:
-            encrypted_file = self.state_dir / f"{self.profile}_state.json.enc"
-            if not encrypted_file.exists():
-                print(f"❌ No encrypted state file found: {encrypted_file}")
-                return None
-            
+    if key_env:
+        try:
+            # Try to decode as base64 and validate it's exactly 32 bytes
             try:
-                key = self._get_encryption_key()
-                fernet = Fernet(key)
-                
-                with open(encrypted_file, 'rb') as f:
-                    encrypted_data = f.read()
-                
-                decrypted_data = fernet.decrypt(encrypted_data)
-                state = json.loads(decrypted_data.decode())
-                
-                print(f"✅ State loaded from: {encrypted_file}")
-                return state
-                
-            except Exception as e:
-                print(f"❌ Failed to decrypt state: {e}")
-                print("💡 Possible key rotation or file corruption")
-                return None
-        else:
-            state_file = self.state_dir / f"{self.profile}_state.json"
-            if not state_file.exists():
-                print(f"❌ No state file found: {state_file}")
-                return None
+                decoded = base64.urlsafe_b64decode(key_env.encode())
+                if len(decoded) == 32:
+                    return key_env.encode()  # Already a valid Fernet key
+            except Exception:
+                pass  # Not valid base64, try other formats
             
-            with open(state_file, 'r') as f:
-                state = json.load(f)
+            # Try hex format (64-char hex string)
+            if len(key_env) == 64 and all(c in '0123456789abcdefABCDEF' for c in key_env):
+                key_bytes = bytes.fromhex(key_env)
+                return base64.urlsafe_b64encode(key_bytes)
             
-            print(f"✅ State loaded from: {state_file}")
-            return state
+            # Try direct base64 format (not urlsafe)
+            try:
+                decoded = base64.b64decode(key_env.encode())
+                if len(decoded) == 32:
+                    return base64.urlsafe_b64encode(decoded)
+            except Exception:
+                pass
+            
+            # If we get here, the format is invalid
+            raise ValueError("Invalid key format")
+            
+        except Exception as e:
+            print(f"❌ Invalid encryption key format: {e}")
+            print(f"   Expected 44-char base64 Fernet key or 64-char hex key")
+            print(f"   Got {len(key_env)} chars: {key_env[:20]}...")
+            sys.exit(1)
     
-    def rotate_key(self, old_key_env: str = None, new_key_env: str = None):
-        """
-        Rotate encryption key for security
-        Re-encrypts all state files with new key
-        """
-        print("🔄 Starting key rotation...")
+    # For development/testing, persist key to local file for reuse
+    if os.environ.get("BOT_ENV") in ("development", "test"):
+        key_file = os.path.join(".trading_bot_keys", f"{profile}_key")
+        os.makedirs(".trading_bot_keys", exist_ok=True)
         
-        # Load current state
-        current_state = self.load_state(encrypted=True)
-        if not current_state:
-            print("❌ No state to rotate")
-            return False
+        # Try to load existing key
+        if os.path.exists(key_file):
+            try:
+                with open(key_file, 'r') as f:
+                    persisted_key = f.read().strip()
+                    return persisted_key.encode()  # Return as-is, already base64 encoded
+            except Exception as e:
+                print(f"⚠️  Warning: Failed to load persisted key: {e}")
         
-        # Backup old state
-        old_file = self.state_dir / f"{self.profile}_state.json.enc"
-        backup_file = self.state_dir / f"{self.profile}_state.json.enc.backup"
-        if old_file.exists():
-            import shutil
-            shutil.copy2(old_file, backup_file)
-            print(f"📋 Backup created: {backup_file}")
+        # Generate new key and persist it
+        try:
+            new_key = base64.urlsafe_b64encode(os.urandom(32))
+            with open(key_file, 'w') as f:
+                f.write(new_key.decode())
+            print(f"⚠️  WARNING: Generated and persisted encryption key for {profile}")
+            print(f"   Set {env_var} environment variable for consistency")
+            print(f"   Key persisted to: {key_file}")
+            return new_key
+        except Exception as e:
+            print(f"❌ ERROR: Failed to persist key: {e}")
+            print(f"   Set {env_var} environment variable manually")
+            sys.exit(1)
+    
+    print(f"❌ ERROR: {env_var} environment variable required")
+    sys.exit(1)
+
+def generate_state(profile: str, initial_cash: float) -> Dict[str, Any]:
+    """Generate fresh trading state dynamically"""
+    return {
+        "version": "1.0",
+        "profile": profile,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "cash": initial_cash,
+        "positions": {},
+        "equity_history": [],
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }
+
+def generate_fills_state(profile: str) -> Dict[str, Any]:
+    """Generate fresh fills state dynamically"""
+    return {
+        "version": "1.0", 
+        "profile": profile,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "fills": [],
+        "reconciled_fills": [],
+        "last_fill_id": 0,
+        "last_updated": datetime.now(timezone.utc).isoformat()
+    }
+
+def save_state_secure(profile: str, state: Dict[str, Any], state_type: str = "state") -> str:
+    """Save state with encryption to local file (not committed)"""
+    key = get_encryption_key(profile)
+    fernet = Fernet(key)
+    
+    # Encrypt the state
+    state_json = json.dumps(state, separators=(',', ':'))
+    encrypted_data = fernet.encrypt(state_json.encode())
+    
+    # Save to local file atomically (not in git)
+    filename = f"{profile}_{state_type}.json.enc"
+    filepath = os.path.join("data", filename)
+    
+    os.makedirs("data", exist_ok=True)
+    
+    # Write to temporary file first, then atomically replace
+    temp_filepath = filepath + ".tmp"
+    try:
+        with open(temp_filepath, 'wb') as f:
+            f.write(encrypted_data)
+            f.flush()
+            os.fsync(f.fileno())  # Ensure data hits disk
         
-        # Save with new key
-        self.save_state(current_state, encrypt=True)
+        # Atomically replace the target file
+        os.replace(temp_filepath, filepath)
         
-        print("✅ Key rotation completed")
-        print(f"🔑 Old key backup: {backup_file}")
-        print("⚠️  Keep backup secure until verification is complete")
+    except Exception as e:
+        # Clean up temp file if it exists
+        if os.path.exists(temp_filepath):
+            try:
+                os.remove(temp_filepath)
+            except:
+                pass
+        raise e
+    
+    print(f"✅ Secure state saved: {filepath}")
+    return filepath
+
+def load_state_secure(profile: str, state_type: str = "state") -> Optional[Dict[str, Any]]:
+    """Load and decrypt state from local file"""
+    key = get_encryption_key(profile)
+    fernet = Fernet(key)
+    
+    filename = f"{profile}_{state_type}.json.enc"
+    filepath = os.path.join("data", filename)
+    
+    if not os.path.exists(filepath):
+        print(f"ℹ️  No existing state file: {filepath}")
+        return None
+    
+    try:
+        with open(filepath, 'rb') as f:
+            encrypted_data = f.read()
         
-        return True
+        decrypted_data = fernet.decrypt(encrypted_data)
+        state = json.loads(decrypted_data.decode())
+        
+        print(f"✅ Secure state loaded: {filepath}")
+        return state
+    except Exception as e:
+        print(f"❌ Failed to load state: {e}")
+        return None
+
+def rotate_key(profile: str, state_types: list = ["state", "fills_state", "runtime_state"]):
+    """Rotate encryption key and re-encrypt all state files"""
+    print(f"🔄 Rotating encryption key for profile: {profile}")
+    
+    # Load existing states
+    old_states = {}
+    for state_type in state_types:
+        state = load_state_secure(profile, state_type)
+        if state:
+            old_states[state_type] = state
+    
+    # Remove old encrypted files
+    for state_type in state_types:
+        filename = f"{profile}_{state_type}.json.enc"
+        filepath = os.path.join("data", filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            print(f"🗑️  Removed old encrypted file: {filepath}")
+    
+    # Generate new key instruction
+    env_var = f"TRADING_BOT_ENCRYPTION_KEY_{profile.upper()}"
+    new_key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+    
+    print(f"🔑 NEW ENCRYPTION KEY for {profile}:")
+    print(f"   export {env_var}=\"{new_key}\"")
+    print("")
+    print("⚠️  IMPORTANT: Update your environment variables with the new key!")
+    
+    # Temporarily set the new key for re-encryption
+    old_env_value = os.environ.get(env_var)
+    os.environ[env_var] = new_key
+    
+    try:
+        # Re-encrypt all loaded states with the new key
+        reencrypted_count = 0
+        for state_type, state in old_states.items():
+            try:
+                save_state_secure(profile, state, state_type)
+                print(f"✅ Re-encrypted {state_type} with new key")
+                reencrypted_count += 1
+            except Exception as e:
+                print(f"❌ Failed to re-encrypt {state_type}: {e}")
+                # Restore old key and exit
+                if old_env_value is not None:
+                    os.environ[env_var] = old_env_value
+                elif env_var in os.environ:
+                    del os.environ[env_var]
+                print(f"🔄 Restored old key - please retry manually")
+                return new_key
+        
+        print(f"✅ Successfully re-encrypted {reencrypted_count} state files")
+        
+    finally:
+        # Restore original environment
+        if old_env_value is not None:
+            os.environ[env_var] = old_env_value
+        elif env_var in os.environ:
+            del os.environ[env_var]
+    
+    print("🔄 Key rotation completed - all states re-encrypted")
+    return new_key
+
+def audit_repository():
+    """Audit repository for any encrypted files or keys"""
+    print("🔍 Auditing repository for security issues...")
+    
+    issues_found = False
+    
+    # Check for .enc files in data directory
+    data_dir = "data"
+    if os.path.exists(data_dir):
+        for file in os.listdir(data_dir):
+            if file.endswith('.enc'):
+                filepath = os.path.join(data_dir, file)
+                print(f"⚠️  Found encrypted file: {filepath}")
+                issues_found = True
+    
+    # Check git for any tracked .enc files
+    try:
+        result = os.popen("git ls-files | grep '\\.enc$'").read().strip()
+        if result:
+            print("❌ CRITICAL: Encrypted files tracked in git:")
+            for line in result.split('\n'):
+                if line.strip():
+                    print(f"   - {line.strip()}")
+            issues_found = True
+    except:
+        pass
+    
+    # Check for potential keys in environment files (but not templates)
+    env_files = ['.env']  # Skip .env.template and .env.example as they're templates
+    for env_file in env_files:
+        if os.path.exists(env_file):
+            with open(env_file, 'r') as f:
+                content = f.read()
+                # Check for actual keys, not placeholder text
+                if any(pattern in content.lower() and 'your_' not in content.lower() and 'here' not in content.lower() 
+                      for pattern in ['key', 'secret', 'token', 'password']):
+                    print(f"⚠️  Potential credentials in: {env_file}")
+                    issues_found = True
+    
+    if not issues_found:
+        print("✅ No security issues found")
+    else:
+        print("❌ Security issues found - please address immediately")
+    
+    return not issues_found
 
 def main():
-    """CLI interface for secure state management"""
-    if len(sys.argv) < 2:
-        print("Usage: python secure_state.py <command> [options]")
-        print("Commands:")
-        print("  generate <profile> <capital>  - Generate new state")
-        print("  load <profile>                - Load existing state") 
-        print("  rotate <profile>              - Rotate encryption key")
-        print("  encrypt <profile>             - Encrypt existing state")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Secure state management")
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    command = sys.argv[1]
-    profile = sys.argv[2] if len(sys.argv) > 2 else "local_paper"
+    # Generate command
+    gen_parser = subparsers.add_parser('generate', help='Generate new state')
+    gen_parser.add_argument('profile', help='Trading profile (local_paper, testnet, live)')
+    gen_parser.add_argument('cash', type=float, nargs='?', default=None, 
+                          help='Initial cash amount (required for state type, ignored for fills_state)')
+    gen_parser.add_argument('--type', default='state', choices=['state', 'fills_state'], 
+                          help='Type of state to generate')
     
-    manager = SecureStateManager(profile)
+    # Load command
+    load_parser = subparsers.add_parser('load', help='Load existing state')
+    load_parser.add_argument('profile', help='Trading profile')
+    load_parser.add_argument('--type', default='state', choices=['state', 'fills_state', 'runtime_state'],
+                           help='Type of state to load')
     
-    if command == "generate":
-        capital = float(sys.argv[3]) if len(sys.argv) > 3 else 1000.0
-        state = manager.generate_state(capital)
-        manager.save_state(state, encrypt=True)
-        
-    elif command == "load":
-        state = manager.load_state(encrypted=True)
-        if state:
-            print(f"📊 State loaded for profile: {profile}")
-            print(f"💰 Current capital: ${state.get('current_capital', 0):.2f}")
-            print(f"📈 Trades count: {len(state.get('trades', []))}")
-        
-    elif command == "rotate":
-        success = manager.rotate_key()
-        if success:
-            print("✅ Key rotation completed successfully")
+    # Rotate command
+    rotate_parser = subparsers.add_parser('rotate', help='Rotate encryption key')
+    rotate_parser.add_argument('profile', help='Trading profile')
+    
+    # Audit command
+    audit_parser = subparsers.add_parser('audit', help='Audit repository security')
+    
+    args = parser.parse_args()
+    
+    if args.command == 'generate':
+        if args.type == 'state':
+            if args.cash is None:
+                print("❌ ERROR: cash amount required for state generation")
+                print("   Usage: python secure_state.py generate <profile> <cash> --type state")
+                sys.exit(1)
+            state = generate_state(args.profile, args.cash)
         else:
-            print("❌ Key rotation failed")
-            
-    elif command == "encrypt":
-        # Load unencrypted and encrypt it
-        state = manager.load_state(encrypted=False)
+            state = generate_fills_state(args.profile)
+        
+        save_state_secure(args.profile, state, args.type)
+        
+    elif args.command == 'load':
+        state = load_state_secure(args.profile, args.type)
         if state:
-            manager.save_state(state, encrypt=True)
-            print("✅ State encrypted successfully")
-        else:
-            print("❌ No unencrypted state found")
-            
+            print(json.dumps(state, indent=2))
+        
+    elif args.command == 'rotate':
+        rotate_key(args.profile)
+        
+    elif args.command == 'audit':
+        audit_repository()
+        
     else:
-        print(f"❌ Unknown command: {command}")
-        sys.exit(1)
+        parser.print_help()
 
 if __name__ == "__main__":
     main()
