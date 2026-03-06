@@ -37,8 +37,14 @@ def fee_to_usdt(trade: dict) -> float:
 
     if fee_ccy == "USDT":
         return fee_cost
+    # Convert quote currency fees to USDT using trade price
     if quote and fee_ccy == quote:
-        return fee_cost
+        if quote == "USDT":
+            return fee_cost  # Already USDT
+        else:
+            # Cannot convert non-USDT quote to USDT without quote/USDT exchange rate
+            print(f"Warning: Cannot convert {fee_ccy} fee to USDT - no {quote}/USDT exchange rate available")
+            return 0.0  # Return explicit sentinel when conversion not possible
     if base and fee_ccy == base and price > 0:
         return fee_cost * price
 
@@ -71,6 +77,11 @@ def process_trade(pnl: SymbolPnL, trade: dict) -> Tuple[SymbolPnL, float]:
         pnl.realized_pnl += realized_delta
         pnl.inv_qty -= amount
 
+        # Warning for negative inventory
+        if pnl.inv_qty < 0:
+            symbol = trade.get("symbol", "UNKNOWN")
+            print(f"Warning: Negative inventory for {symbol}: {pnl.inv_qty}")
+        
         if pnl.inv_qty < 0 and abs(pnl.inv_qty) < 1e-12:
             pnl.inv_qty = 0.0
         if pnl.inv_qty <= 0:
@@ -89,7 +100,8 @@ def fetch_new_trades(ex: ccxt.Exchange, symbols: List[str], since_ms: Optional[i
         if batch:
             trades.extend(batch)
             return trades
-    except Exception:
+    except Exception as e:
+        print(f"Warning: Failed to fetch all trades: {e}")
         pass
 
     for s in symbols:
@@ -126,7 +138,8 @@ def reconcile_fills(ex: ccxt.Exchange, symbols: List[str], state: dict, fills_lo
         return state
 
     trades_sorted = sorted(trades, key=lambda t: (t.get("timestamp") or 0, t.get("id") or ""))
-    seen = set(state.get("seen_trade_ids") or [])
+    # Use list to maintain insertion order for most recent trade tracking
+    seen = list(state.get("seen_trade_ids") or [])
 
     max_ts = since_ms or 0
     for t in trades_sorted:
@@ -162,12 +175,15 @@ def reconcile_fills(ex: ccxt.Exchange, symbols: List[str], state: dict, fills_lo
         ])
 
         if tid:
-            seen.add(tid)
+            # Add to seen list if not already present (maintain order)
+            if tid not in seen:
+                seen.append(tid)
         if ts > max_ts:
             max_ts = ts
 
     state["since_ms"] = int(max_ts + 1)
-    state["seen_trade_ids"] = list(seen)[-5000:]
+    # Keep only the most recent 5000 trade IDs (maintaining insertion order)
+    state["seen_trade_ids"] = seen[-5000:] if len(seen) > 5000 else seen
     state["by_symbol"] = {s: pnl_map[s].__dict__ for s in symbols}
     return state
 

@@ -88,8 +88,36 @@ def simulate_strategy_performance():
             symbol_avg_return = sum(t['return_pct'] for t in trades) / len(trades)
             
             # Calculate position size and returns
-            position_size = current_capital * risk_per_trade
-            symbol_profit = sum(t['return_pct']/100 * position_size for t in trades)
+            # Extract per-trade stop loss if available, otherwise use default
+            default_stop_loss = 0.02  # 2% default stop loss
+            minimum_allowed_stop_loss = 0.001  # 0.1% minimum to prevent extreme positions
+            
+            # Calculate position size and returns per trade
+            trade_returns = []
+            for trade in trades:
+                # Try to get stop loss from trade data, fallback to default
+                trade_stop_loss = trade.get('stop_loss_pct', trade.get('stop_pct', default_stop_loss))
+                
+                # Validate trade_stop_loss to prevent division by zero or extreme positions
+                if trade_stop_loss is None or trade_stop_loss <= 0:
+                    # Invalid values → use default stop loss
+                    trade_stop_loss = default_stop_loss
+                elif trade_stop_loss < minimum_allowed_stop_loss:
+                    # Valid but too small → clamp up to minimum allowed
+                    trade_stop_loss = minimum_allowed_stop_loss
+                
+                # Calculate position size for this trade
+                risk_amount = current_capital * risk_per_trade
+                trade_position_size = min(risk_amount / trade_stop_loss, current_capital)
+                
+                # Calculate return for this trade
+                trade_return = trade['return_pct']/100 * trade_position_size
+                trade_returns.append(trade_return)
+                
+                # Update capital after each trade for compounded calculations
+                current_capital += trade_return
+            
+            symbol_profit = sum(trade_returns)
             
             symbol_results[symbol] = {
                 'trades': symbol_trades,

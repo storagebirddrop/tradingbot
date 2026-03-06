@@ -124,13 +124,13 @@ python3 run_bot.py --profile local_paper
 ### **Conservative Safety Parameters**
 ```json
 {
-  "risk_per_trade": 0.01,        // 1% risk per trade
-  "max_positions": 2,             // Maximum concurrent positions
-  "max_position_pct": 0.15,       // 15% max per position
-  "max_total_exposure_pct": 0.25, // 25% total portfolio exposure
-  "risk_off_exits": true,         // Automatic risk-off exits
-  "stop_pct": 0.02,               // 2% stop loss
-  "trail_pct": 0.02              // 2% trailing stop
+  "risk_per_trade": 0.01,
+  "max_positions": 2,
+  "max_position_pct": 0.15,
+  "max_total_exposure_pct": 0.25,
+  "risk_off_exits": true,
+  "stop_pct": 0.02,
+  "trail_pct": 0.02
 }
 ```
 
@@ -158,16 +158,16 @@ BOT_ENV=production  # development, test, or production
 ```
 
 ### **Strategy Parameters**
-```json
+```jsonc
 {
   "volume_reversal_strategy": {
     "enabled": true,
-    "stop_loss_pct": 0.03,        // 3% stop loss
-    "take_profit_pct": 0.15,      // 15% take profit
-    "max_holding_periods": 24,     // 24 hours max
-    "volume_ratio_threshold": 1.2,  // 1.2x volume confirmation
-    "rsi_threshold": 45,           // Relaxed RSI threshold
-    "risk_per_trade": 0.08         // 8% risk (4% effective with 2x leverage)
+    "stop_loss_pct": 0.03,
+    "take_profit_pct": 0.15,
+    "max_holding_periods": 24,
+    "volume_ratio_threshold": 1.2,
+    "rsi_threshold": 45,
+    "risk_per_trade": 0.08
   }
 }
 ```

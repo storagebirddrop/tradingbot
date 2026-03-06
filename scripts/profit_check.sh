@@ -12,8 +12,17 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Default profile
+# Default profile with sanitization
 PROFILE=${1:-local_paper}
+# Sanitize PROFILE variable to prevent injection
+PROFILE=$(echo "$PROFILE" | sed 's/[^a-zA-Z0-9_-]//g')
+
+# Validate PROFILE is not empty after sanitization
+if [ -z "$PROFILE" ]; then
+    echo "Error: Invalid PROFILE parameter after sanitization"
+    echo "Using default profile: local_paper"
+    PROFILE="local_paper"
+fi
 
 echo -e "${BLUE}📊 Phemex Trading Bot - Profit Checker${NC}"
 echo -e "${BLUE}=====================================${NC}"
@@ -49,6 +58,8 @@ from datetime import datetime, timezone
 PROFILE = '$PROFILE'
 
 def format_currency(amount):
+    if amount == 0:
+        return '$0.00'
     return f'\${amount:,.2f}'
 
 def format_percentage(pct):
@@ -104,14 +115,16 @@ try:
                 print(f'📊 Annual Volatility: {format_percentage(volatility)}')
                 
                 # Log the inferred frequency for transparency
-                if periods_per_year >= 350:
-                    freq_label = "daily"
-                elif periods_per_year >= 150:
-                    freq_label = "4-hourly"
-                elif periods_per_year >= 50:
+                if periods_per_year >= 8760:  # 365*24
                     freq_label = "hourly"
+                elif periods_per_year >= 2190:  # 365*6
+                    freq_label = "4-hourly"
+                elif periods_per_year >= 365:
+                    freq_label = "daily"
+                elif periods_per_year >= 52:
+                    freq_label = "weekly"
                 else:
-                    freq_label = f"{periods_per_year:.0f} periods/year"
+                    freq_label = "monthly"
                 
                 print(f'📊 Inferred Frequency: {freq_label} ({periods_per_year:.1f} periods/year)')
     else:

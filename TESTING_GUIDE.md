@@ -156,12 +156,22 @@ def validate_performance(results):
     for metric, (min_target, excellent) in targets.items():
         # Extract metric from results (implementation needed)
         value = extract_metric(results, metric)
-        if value >= excellent:
-            status = "✅ EXCELLENT"
-        elif value >= min_target:
-            status = "✅ ACCEPTABLE"
+        if metric == "max_drawdown":
+            # For max_drawdown, lower values are better
+            if value <= excellent:
+                status = "✅ EXCELLENT"
+            elif value <= min_target:
+                status = "✅ ACCEPTABLE"
+            else:
+                status = "❌ BELOW TARGET"
         else:
-            status = "❌ BELOW TARGET"
+            # For other metrics, higher values are better
+            if value >= excellent:
+                status = "✅ EXCELLENT"
+            elif value >= min_target:
+                status = "✅ ACCEPTABLE"
+            else:
+                status = "❌ BELOW TARGET"
         validation_results[metric] = {"value": value, "status": status}
     
     return validation_results
@@ -175,9 +185,13 @@ def extract_metric(results, metric):
         if metric.lower() in line.lower():
             # Extract numeric value
             import re
-            numbers = re.findall(r'\d+\.?\d*', line)
+            numbers = re.findall(r'-?\d+\.?\d*', line)
             if numbers:
-                return float(numbers[0])
+                value = float(numbers[0])
+                # Normalize max_drawdown to positive value (drawdown is negative)
+                if metric == "max_drawdown":
+                    return abs(value)
+                return value
     return None
 
 def main():
@@ -295,13 +309,18 @@ def analyze_paper_trading():
         print(f"Average Return: {avg_return:.2f}%")
         print(f"Total Return: {total_return:.2f}%")
     
-    # Drawdown analysis
+    # Initialize max_drawdown as None to detect empty equity cases
+    max_drawdown = None
+    
+    # Equity analysis
     if not equity.empty:
         equity['equity'] = pd.to_numeric(equity['equity'], errors='coerce')
         equity['running_max'] = equity['equity'].expanding().max()
         equity['drawdown'] = (equity['equity'] - equity['running_max']) / equity['running_max'] * 100
         max_drawdown = equity['drawdown'].min()
         print(f"Max Drawdown: {max_drawdown:.2f}%")
+    else:
+        print("Warning: No equity data available for drawdown analysis")
     
     # Time analysis
     if not trades.empty:
@@ -325,7 +344,7 @@ def analyze_paper_trading():
     validations = [
         ("Trade Count", total_trades >= 50, "50+ trades"),
         ("Win Rate", 30 <= win_rate <= 50, "30-50%"),
-        ("Max Drawdown", max_drawdown <= 25, "<25%"),
+        ("Max Drawdown", max_drawdown is not None and max_drawdown >= -25, "<25% drawdown"),
         ("Duration", trading_period >= 14, "2+ weeks")
     ]
     
@@ -398,7 +417,7 @@ if api_key:
     else:
         print('✅ API key length acceptable')
 else:
-    print('ℹ️  No API key found (expected for paper trading)'
+    print('ℹ️  No API key found (expected for paper trading)')
 
 # Check encryption key
 try:
@@ -629,7 +648,7 @@ def benchmark_strategy():
         print("⚠️  Throughput: Needs optimization")
 
 if __name__ == "__main__":
-    benchmark_performance()
+    benchmark_strategy()
 EOF
 
 chmod +x benchmark_performance.py
@@ -744,7 +763,7 @@ def check_production_readiness():
     # Security check
     try:
         from brokers import _get_encryption_key
-        key = _get_enciction_key()
+        key = _get_encryption_key()
         checks.append(("Encryption", "✅ PASS", "Key accessible"))
     except Exception as e:
         checks.append(("Encryption", "❌ FAIL", f"Key error: {e}"))

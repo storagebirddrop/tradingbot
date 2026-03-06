@@ -48,7 +48,7 @@ def _utcnow() -> datetime:
 
 
 def _fmt_ts(ts: Optional[float]) -> str:
-    if not ts:
+    if not ts or ts == 0.0:
         return "n/a"
     return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat()
 
@@ -89,7 +89,17 @@ def _last_fill_time_from_fills_csv(path: str) -> Optional[datetime]:
         if "timestamp" in df.columns:
             ts = pd.to_numeric(df["timestamp"], errors="coerce").dropna()
             if not ts.empty:
-                return datetime.fromtimestamp(float(ts.iloc[-1]) / 1000.0, tz=timezone.utc)
+                # Detect timestamp unit using digit count heuristics
+                last_ts = float(ts.iloc[-1])
+                # Treat values > 1e12 as milliseconds (13+ digits)
+                # Treat values <= 1e10 as seconds (10 or fewer digits)  
+                # Handle 11-12 digit range conservatively as milliseconds
+                if last_ts > 1e12:  # 13+ digits = milliseconds
+                    return datetime.fromtimestamp(last_ts / 1000.0, tz=timezone.utc)
+                elif last_ts <= 1e10:  # 10 or fewer digits = seconds
+                    return datetime.fromtimestamp(last_ts, tz=timezone.utc)
+                else:  # 11-12 digits, treat as milliseconds conservatively
+                    return datetime.fromtimestamp(last_ts / 1000.0, tz=timezone.utc)
     except Exception:
         return None
     return None

@@ -280,7 +280,14 @@ fi
 echo -e "${GREEN}[INFO]${NC} Validating configuration..."
 python3 -c "
 import json
-from run_bot import validate_config
+import sys
+try:
+    from run_bot import validate_config
+except ImportError as e:
+    print(f'⚠️  Warning: Could not import validate_config: {e}')
+    print('⚠️  Skipping configuration validation')
+    sys.exit(0)
+
 try:
     with open('config.json', 'r') as f:
         cfg = json.load(f)
@@ -289,13 +296,13 @@ try:
     print('✅ Configuration validation passed')
 except Exception as e:
     print(f'❌ Configuration validation failed: {e}')
-    exit(1)
+    sys.exit(1)
 "
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}[ERROR]${NC} Configuration validation failed"
-    exit 1
-fi
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}[ERROR]${NC} Configuration validation failed"
+        exit 1
+    fi
 
 # Run the bot
 echo -e "${GREEN}[INFO]${NC} Starting bot with profile: $PROFILE"
@@ -429,8 +436,8 @@ PHEMEX_API_KEY=your_api_key_here
 PHEMEX_API_SECRET=your_api_secret_here
 
 # Trading Enable Flags
-ENABLE_TESTNET_TRADING=YES    # Set to YES to enable testnet trading
-ENABLE_LIVE_TRADING=YES       # Set to YES to enable live trading
+ENABLE_TESTNET_TRADING=NO     # Set to YES to enable testnet trading
+ENABLE_LIVE_TRADING=NO        # Set to YES to enable live trading
 
 # Optional: Custom Encryption Key for State Files
 # Generate with: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

@@ -10,9 +10,23 @@ def main():
     eq = pd.read_csv(args.equity_log)
     eq["time_utc"] = pd.to_datetime(eq["time_utc"], utc=True, errors="coerce")
 
-    col = "equity" if "equity" in eq.columns else "equity_est_usdt"
+    # Validate required columns exist
+    required_cols = ['equity', 'equity_est_usdt']
+    available_cols = [col for col in required_cols if col in eq.columns]
+    if not available_cols:
+        print("❌ No required columns found (equity or equity_est_usdt)")
+        return
+    
+    # Use the first available column
+    col = available_cols[0]
+    
     eq[col] = pd.to_numeric(eq[col], errors="coerce")
     eq = eq.dropna(subset=[col]).sort_values("time_utc").reset_index(drop=True)
+    
+    # Check if DataFrame is empty after dropna
+    if eq.empty:
+        print(f"⚠️  Column '{col}' exists but no valid data after removing NaN values")
+        return
 
     eq["peak"] = eq[col].cummax()
     eq["dd_pct"] = (eq[col] / eq["peak"] - 1.0) * 100.0

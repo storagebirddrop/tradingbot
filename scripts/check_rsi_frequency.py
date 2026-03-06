@@ -38,7 +38,19 @@ try:
     print(f'RSI < 35 occurrences: {below_35_count}')
     print(f'Percentage of time: {percentage:.2f}%')
     if below_35_count > 0:
-        print(f'Average time between occurrences: {total_periods/below_35_count:.1f} periods ({total_periods/below_35_count*4:.1f} hours)')
+        # Get indices where RSI < 35 for proper interval calculation
+        rsi_below_35 = df_ind[df_ind['rsi'] < 35]
+        occurrence_indices = rsi_below_35.index.tolist()
+        
+        # Calculate intervals between consecutive occurrences
+        if len(occurrence_indices) > 1:
+            intervals = [occurrence_indices[i+1] - occurrence_indices[i] 
+                        for i in range(len(occurrence_indices)-1)]
+            avg_interval = sum(intervals) / len(intervals)
+        else:
+            avg_interval = total_periods  # Only one occurrence
+        
+        print(f'Average time between occurrences: {avg_interval:.1f} periods ({avg_interval*4:.1f} hours)')
         
         print(f'\nMost recent RSI < 35:')
         print(rsi_below_35[['timestamp', 'rsi', 'close']].tail(3))

@@ -1,5 +1,7 @@
 import argparse
+import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 
 def main():
@@ -7,15 +9,43 @@ def main():
     ap.add_argument("--equity-log", default="paper_equity.csv")
     args = ap.parse_args()
 
+    # Input validation
+    if not os.path.exists(args.equity_log):
+        print(f"Error: File {args.equity_log} not found")
+        return
+    
+    if os.path.getsize(args.equity_log) == 0:
+        print(f"Error: File {args.equity_log} is empty")
+        return
+
     eq = pd.read_csv(args.equity_log)
+    
+    # Validate required columns
+    if 'time_utc' not in eq.columns:
+        print("Error: Missing 'time_utc' column")
+        return
+    
+    if 'equity' not in eq.columns and 'equity_est_usdt' not in eq.columns:
+        print("Error: Missing 'equity' or 'equity_est_usdt' column")
+        return
+    
+    if eq.empty:
+        print("Error: DataFrame is empty after reading")
+        return
+
     eq["time_utc"] = pd.to_datetime(eq["time_utc"], utc=True, errors="coerce")
 
     col = "equity" if "equity" in eq.columns else "equity_est_usdt"
     eq[col] = pd.to_numeric(eq[col], errors="coerce")
     eq = eq.dropna(subset=[col]).sort_values("time_utc").reset_index(drop=True)
+    
+    if eq.empty:
+        print("Error: No valid data after cleaning")
+        return
 
     eq["peak"] = eq[col].cummax()
-    eq["dd_pct"] = (eq[col] / eq["peak"] - 1.0) * 100.0
+    # Guard against division by zero in drawdown calculation
+    eq["dd_pct"] = (eq[col] / eq["peak"].replace(0, np.nan) - 1.0) * 100.0
 
     plt.figure()
     plt.plot(eq["time_utc"], eq[col])

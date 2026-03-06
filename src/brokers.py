@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, List, Any, Tuple
 import base64
 import binascii
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 
 # Module-level cache for encryption key
 _cached_encryption_key = None
@@ -63,8 +63,11 @@ def _encrypt_data(data: str) -> bytes:
         key = _get_encryption_key()
         f = Fernet(key)
         return f.encrypt(data.encode())
-    except (KeyError, TypeError) as e:
-        raise ValueError(f"Failed to get encryption key: {e}")
+    except ValueError as e:
+        # Re-raise ValueError from _get_encryption_key
+        raise
+    except (TypeError, AttributeError) as e:
+        raise ValueError(f"Invalid encryption key format: {e}")
     except Exception as e:
         raise ValueError(f"Encryption failed: {e}")
 
@@ -80,6 +83,8 @@ def _decrypt_data(encrypted_data: bytes) -> str:
         return decrypted.decode() if isinstance(decrypted, bytes) else decrypted
     except (KeyError, TypeError) as e:
         raise ValueError(f"Failed to get encryption key: {e}")
+    except InvalidToken:
+        raise ValueError("Invalid encryption token - data may be corrupted or encrypted with different key")
     except Exception as e:
         raise ValueError(f"Decryption failed: {e}")
 
@@ -144,6 +149,15 @@ def load_json(path: str):
             # Regular text file
             with open(path, "r") as f:
                 return json.load(f)
+    except FileNotFoundError:
+        print(f"File not found: {path}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON in {path}: {e}")
+        return None
+    except PermissionError:
+        print(f"Permission denied accessing {path}")
+        return None
     except Exception as e:
         print(f"Error loading {path}: {e}")
         return None
@@ -183,8 +197,9 @@ def configure_phemex_env(ex: ccxt.Exchange, env: str) -> None:
     if env != "testnet": return
     try:
         ex.set_sandbox_mode(True)
-    except Exception:
-        pass
+        print("Configured Phemex testnet sandbox mode")
+    except Exception as e:
+        print(f"Warning: Failed to set sandbox mode: {e}")
     # best-effort REST override - use proper API structure
     try:
         if hasattr(ex, 'urls') and isinstance(ex.urls, dict):
@@ -192,8 +207,9 @@ def configure_phemex_env(ex: ccxt.Exchange, env: str) -> None:
             ex.urls['api']['public'] = "https://testnet-api.phemex.com"
             ex.urls['api']['private'] = "https://testnet-api.phemex.com"
             ex.urls['www'] = "https://testnet.phemex.com"
-    except Exception:
-        pass
+            print("Configured Phemex testnet API URLs")
+    except Exception as e:
+        print(f"Warning: Failed to configure testnet URLs: {e}")
 
 @dataclass
 class Position:
@@ -232,9 +248,14 @@ class PaperBroker(BaseBroker):
         st = load_json(self.cfg["state_file"]) or {}
         try:
             self.cash = float(st.get("cash", self.cash))
-            self._positions = {s: Position(**p) for s,p in (st.get("positions") or {}).items()}
-        except Exception:
-            pass
+            positions_data = st.get("positions") or {}
+            self._positions = {s: Position(**p) for s,p in positions_data.items()}
+        except (ValueError, TypeError, KeyError) as e:
+            print(f"Warning: Failed to restore state: {e}")
+            # Continue with default values
+        except Exception as e:
+            print(f"Error: Unexpected error during state restore: {e}")
+            # Continue with default values
 
     def persist(self):
         save_json(self.cfg["state_file"], 
@@ -389,8 +410,8 @@ class ExchangeBroker(BaseBroker):
             pass
 
     def persist(self):
-        save_json(self.cfg["state_file"], {"positions": {s: asdict(p) for s,p in self._positions.items()}, "saved_at": now_iso()})
-        save_json(self._fills_state_path, self._fills_state)
+        save_json(self.cfg["state_file"], {"positions": {s: asdict(p) for s,p in self._positions.items()}, "saved_at": now_iso()}, encrypt=True)
+        save_json(self._fills_state_path, self._fills_state, encrypt=True)
 
     def _guard(self):
         if bool(self.cfg.get("dry_run", True)):
@@ -470,7 +491,9 @@ class ExchangeBroker(BaseBroker):
                 status = (o.get("status") or "").lower()
                 if status in ("open","new","created"): return True
                 if status in ("canceled","rejected"): return False
-                return True
+                # Status is neither confirmed open nor canceled, continue checking
+                time.sleep(0.6)
+                continue
             except Exception:
                 self.record_api_error("exchange.fetch_order_stop_confirm")
                 time.sleep(0.6)
@@ -493,12 +516,14 @@ class ExchangeBroker(BaseBroker):
         try:
             self.ex.edit_order(stop_order_id, symbol, "market", "sell", qty, None, params)
             return stop_order_id
-        except Exception:
+        except Exception as e:
+            print(f"Warning: Failed to edit stop order: {e}")
             self.record_api_error("exchange.edit_order_stop")
             new_id = self._create_hard_stop(symbol, qty, new_stop_px)
             try:
                 self.ex.cancel_order(stop_order_id, symbol)
-            except Exception:
+            except Exception as e2:
+                print(f"Warning: Failed to cancel old stop after replacement: {e2}")
                 self.record_api_error("exchange.cancel_old_stop_after_replace")
             return new_id
 
@@ -518,7 +543,8 @@ class ExchangeBroker(BaseBroker):
             self._guard()
             try:
                 buy_order = self.ex.create_order(symbol, "market", "buy", qty)
-            except Exception:
+            except Exception as e:
+                print(f"Warning: Failed to create buy order: {e}")
                 self.record_api_error("exchange.create_order_buy")
                 return False
 
