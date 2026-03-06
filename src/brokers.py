@@ -318,8 +318,16 @@ class PaperBroker(BaseBroker):
         eq = self.equity_usdt(price_map)
         risk_amt = eq * float(self.cfg["risk_per_trade"]) * size_scale
         # Use provided stop_px if valid, otherwise fall back to strategy-specific stop_pct, then global stop_pct
-        if stop_px is not None and stop_px < px:
-            effective_stop = stop_px
+        if stop_px is not None:
+            if stop_px < px:
+                effective_stop = stop_px
+            else:
+                # Invalid stop_px (>= entry price) - log warning and fall back
+                print(f"Warning: Invalid stop_px ${stop_px:.2f} >= entry price ${px:.2f} for {symbol}. Falling back to strategy/global stop loss.")
+                if strategy_stop_pct is not None:
+                    effective_stop = px * (1 - strategy_stop_pct)
+                else:
+                    effective_stop = px * (1 - float(self.cfg["stop_pct"]))
         elif strategy_stop_pct is not None:
             effective_stop = px * (1 - strategy_stop_pct)
         else:
@@ -564,8 +572,16 @@ class ExchangeBroker(BaseBroker):
         eq = self.equity_usdt(price_map)
         risk_amt = eq * float(self.cfg["risk_per_trade"]) * size_scale
         # Use provided stop_px if valid, otherwise fall back to strategy-specific stop_pct, then global stop_pct
-        if stop_px is not None and stop_px < px:
-            effective_stop_dist = px - stop_px
+        if stop_px is not None:
+            if stop_px < px:
+                effective_stop_dist = px - stop_px
+            else:
+                # Invalid stop_px (>= entry price) - log warning and fall back
+                print(f"Warning: Invalid stop_px ${stop_px:.2f} >= entry price ${px:.2f} for {symbol}. Falling back to strategy/global stop loss.")
+                if strategy_stop_pct is not None:
+                    effective_stop_dist = px * strategy_stop_pct
+                else:
+                    effective_stop_dist = px * float(self.cfg["stop_pct"])
         elif strategy_stop_pct is not None:
             effective_stop_dist = px * strategy_stop_pct
         else:
