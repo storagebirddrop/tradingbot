@@ -150,12 +150,14 @@ def calculate_mfi_divergence(close: pd.Series, mfi: pd.Series, lookback: int = 1
         price_window = close.iloc[i-lookback:i+1]
         mfi_window = mfi.iloc[i-lookback:i+1]
         
-        # Find recent lows
+        # Find recent lows — skip window if all NaN (sparse early data)
+        if price_window.isna().all() or mfi_window.isna().all():
+            continue
         price_low_idx = price_window.idxmin()
         mfi_low_idx = mfi_window.idxmin()
-        
+
         # Check for bullish divergence
-        if (price_low_idx != mfi_low_idx and 
+        if (price_low_idx != mfi_low_idx and
             price_window.loc[price_low_idx] < price_window.iloc[-2] and
             mfi_window.loc[mfi_low_idx] > mfi_window.iloc[-2] and
             mfi_window.iloc[-1] < 50):  # MFI oversold
@@ -171,12 +173,14 @@ def calculate_ad_divergence(close: pd.Series, ad_line: pd.Series, lookback: int 
         price_window = close.iloc[i-lookback:i+1]
         ad_window = ad_line.iloc[i-lookback:i+1]
         
-        # Find recent lows
+        # Find recent lows — skip window if all NaN (sparse early data)
+        if price_window.isna().all() or ad_window.isna().all():
+            continue
         price_low_idx = price_window.idxmin()
         ad_low_idx = ad_window.idxmin()
-        
+
         # Check for bullish divergence
-        if (price_low_idx != ad_low_idx and 
+        if (price_low_idx != ad_low_idx and
             price_window.loc[price_low_idx] < price_window.iloc[-2] and
             ad_window.loc[ad_low_idx] > ad_window.iloc[-2]):
             divergence.iloc[i] = 1
@@ -191,12 +195,14 @@ def calculate_cmf_divergence(close: pd.Series, cmf: pd.Series, lookback: int = 2
         price_window = close.iloc[i-lookback:i+1]
         cmf_window = cmf.iloc[i-lookback:i+1]
         
-        # Find recent lows
+        # Find recent lows — skip window if all NaN (sparse early data)
+        if price_window.isna().all() or cmf_window.isna().all():
+            continue
         price_low_idx = price_window.idxmin()
         cmf_low_idx = cmf_window.idxmin()
-        
+
         # Check for bullish divergence
-        if (price_low_idx != cmf_low_idx and 
+        if (price_low_idx != cmf_low_idx and
             price_window.loc[price_low_idx] < price_window.iloc[-2] and
             cmf_window.loc[cmf_low_idx] > cmf_window.iloc[-2] and
             cmf_window.iloc[-1] < -0.1):  # CMF oversold
