@@ -72,15 +72,26 @@ MIN_TRADES = 5
 # ---------------------------------------------------------------------------
 
 def load_hmm(pkl_path: str, states_path: str):
-    """Load trained HMM model and state label config."""
+    """Load trained HMM model (and optional scaler) + state label config.
+
+    Supports both old format (raw model) and new format (dict with
+    'model' and 'scaler' keys, produced after StandardScaler was added).
+    Returns (model, scaler_or_None, states_cfg).
+    """
     with open(pkl_path, "rb") as f:
-        model = pickle.load(f)
+        bundle = pickle.load(f)
+    if isinstance(bundle, dict) and "model" in bundle:
+        model  = bundle["model"]
+        scaler = bundle.get("scaler", None)
+    else:
+        model  = bundle
+        scaler = None
     with open(states_path, "r") as f:
         states_cfg = json.load(f)
-    return model, states_cfg
+    return model, scaler, states_cfg
 
 
-def compute_hmm_regime_df(model, states_cfg: dict, df_1d: pd.DataFrame) -> pd.DataFrame:
+def compute_hmm_regime_df(model, scaler, states_cfg: dict, df_1d: pd.DataFrame) -> pd.DataFrame:
     """
     Apply HMM to daily OHLCV and return DataFrame with columns:
       timestamp, hmm_state_int, hmm_label, hmm_conf
@@ -94,6 +105,8 @@ def compute_hmm_regime_df(model, states_cfg: dict, df_1d: pd.DataFrame) -> pd.Da
     smooth_span    = int(states_cfg.get("smooth_span", 3))
 
     X = compute_features(df_1d)
+    if scaler is not None:
+        X = scaler.transform(X)
     probs = model.predict_proba(X)   # (n_bars, n_states)
 
     # EMA-smooth each state posterior
@@ -383,6 +396,17 @@ def run_regime_switching_wfo(
     sideways_filters: bool = False,
 ) -> List[object]:
     """Walk-forward regime switching backtest."""
+    # Normalize all timestamp columns to tz-naive for consistent comparison
+    def _strip_tz(df: pd.DataFrame) -> pd.DataFrame:
+        if pd.api.types.is_datetime64tz_dtype(df["timestamp"]):
+            df = df.copy()
+            df["timestamp"] = df["timestamp"].dt.tz_localize(None)
+        return df
+
+    df_4h  = _strip_tz(df_4h)
+    df_1d  = _strip_tz(df_1d)
+    hmm_df = _strip_tz(hmm_df)
+
     n = len(df_4h)
     window_size = n // n_splits
     results = []
@@ -431,7 +455,7 @@ def main():
     args = parser.parse_args()
 
     print(f"Loading HMM from {args.hmm}...")
-    model, states_cfg = load_hmm(args.hmm, args.hmm_states)
+    model, scaler, states_cfg = load_hmm(args.hmm, args.hmm_states)
     print(f"  State labels: {states_cfg['state_labels']}")
 
     strategy_params = {k: dict(v) for k, v in DEFAULT_STRATEGY_PARAMS.items()}
@@ -459,7 +483,7 @@ def main():
 
         # Compute HMM regime labels on daily data
         print("  Computing HMM regime labels...")
-        hmm_df = compute_hmm_regime_df(model, states_cfg, df_1d)
+        hmm_df = compute_hmm_regime_df(model, scaler, states_cfg, df_1d)
         dist = hmm_df["hmm_label"].value_counts(normalize=True)
         for lbl, frac in dist.items():
             print(f"    {lbl}: {frac:.1%}")
