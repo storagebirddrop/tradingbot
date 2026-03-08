@@ -148,8 +148,15 @@ def attach_hmm_to_4h(df_4h: pd.DataFrame, hmm_df: pd.DataFrame) -> pd.DataFrame:
     df_4h = df_4h.copy()
     hmm_daily = hmm_df.copy()
     # Normalize timestamps to tz-naive dates for merge
-    hmm_daily["date"] = pd.to_datetime(hmm_daily["timestamp"]).dt.tz_localize(None).dt.normalize()
-    df_4h["date"] = pd.to_datetime(df_4h["timestamp"]).dt.tz_localize(None).dt.normalize()
+    ts = pd.to_datetime(hmm_daily["timestamp"])
+    if ts.dt.tz is not None:
+        ts = ts.dt.tz_localize(None)
+    hmm_daily["date"] = ts.dt.normalize()
+    
+    ts = pd.to_datetime(df_4h["timestamp"])
+    if ts.dt.tz is not None:
+        ts = ts.dt.tz_localize(None)
+    df_4h["date"] = ts.dt.normalize()
 
     merged = df_4h.merge(
         hmm_daily[["date", "hmm_label", "hmm_state_int", "hmm_conf"]],
@@ -327,7 +334,7 @@ def run_regime_switching_backtest(
                 exit_px_eff = px - slip
                 fee = pos["qty"] * exit_px_eff * fee_pct
                 gross = pos["qty"] * (exit_px_eff - pos["entry_px"])
-                net   = gross - fee - pos["entry_fee"] - slip * pos["qty"]
+                net   = gross - fee - pos["entry_fee"]
                 cash += pos["qty"] * exit_px_eff - fee
                 trades_list.append(Trade(
                     symbol=symbol,

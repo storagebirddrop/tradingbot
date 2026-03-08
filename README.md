@@ -58,7 +58,7 @@ Per-symbol strategy routing: `"symbol_strategy": {"VTHO/USDT": "vwap_band_bounce
 | `phemex_testnet` | Exchange | Yes | Testnet with simulated funds |
 | `phemex_live` | Exchange | Yes | Production (dry_run: true by default) |
 
-**All profiles require `BOT_ENCRYPTION_KEY` in `.env`** for state file encryption.
+**Production and staging profiles require `BOT_ENCRYPTION_KEY` in `.env`** for state file encryption. In development mode (`BOT_ENV=development`), the key requirement is bypassed for local testing.
 
 ---
 
@@ -68,7 +68,7 @@ Per-symbol strategy routing: `"symbol_strategy": {"VTHO/USDT": "vwap_band_bounce
 # Setup
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.template .env   # Add BOT_ENCRYPTION_KEY
+cp .env.template .env   # Add BOT_ENCRYPTION_KEY (skip if BOT_ENV=development)
 
 # Paper trading (no API keys needed)
 python3 run_bot.py --profile local_paper
@@ -80,7 +80,7 @@ python3 run_bot.py --profile local_paper
 ### Environment Variables (`.env`)
 
 ```bash
-BOT_ENCRYPTION_KEY=<32-byte base64 key>   # required — all profiles
+BOT_ENCRYPTION_KEY=<32-byte base64 key>   # required for production/staging
 PHEMEX_API_KEY=<key>                       # required — exchange profiles
 PHEMEX_API_SECRET=<secret>                 # required — exchange profiles
 BOT_ENV=development                        # skip key requirement in dev/test
@@ -164,6 +164,7 @@ python3 research/regime_strategy_analysis.py \
 - State files (`*_state.json`) are Fernet-encrypted at rest; written atomically via `.tmp` + `os.replace`
 - `.env`, `*.json.enc`, state files, and CSVs are gitignored
 - `BOT_ENV=development` bypasses key requirement for local dev only
+- **Security Warning**: Never run with `BOT_ENV=development` in production - always set `BOT_ENCRYPTION_KEY` in production/staging environments
 
 ---
 

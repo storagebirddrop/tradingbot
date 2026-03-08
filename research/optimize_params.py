@@ -22,8 +22,8 @@ import pandas as pd
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
-if _HERE not in sys.path:
-    sys.path.insert(0, _HERE)
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 from backtest_engine import BacktestConfig, purged_cv, load_ohlcv_csv
 
