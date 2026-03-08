@@ -59,6 +59,7 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
       "poll_seconds": 20,
       "status_every_n_loops": 3,
       "limit_4h": 800,
@@ -172,6 +173,7 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
@@ -288,6 +290,7 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
