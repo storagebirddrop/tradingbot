@@ -60,6 +60,7 @@
         "threshold": 0.55
       },
       "hmm_regime_strategy": {},
+      "log_file": "paper_bot.log",
       "poll_seconds": 20,
       "status_every_n_loops": 3,
       "limit_4h": 800,
@@ -174,6 +175,7 @@
         "threshold": 0.55
       },
       "hmm_regime_strategy": {},
+      "log_file": "testnet_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
@@ -291,6 +293,7 @@
         "threshold": 0.55
       },
       "hmm_regime_strategy": {},
+      "log_file": "live_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,

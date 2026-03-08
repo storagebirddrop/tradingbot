@@ -11,16 +11,22 @@ from .brokers import get_latest_signal_rows, get_current_tf_open_ts, fetch_ohlcv
 from .signal_filter import init_filter
 from . import regime_model
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+
+
+def configure_logging(log_file: str = "bot.log") -> None:
+    """Configure root logger with file + stream handlers.  Call once at startup."""
+    root = logging.getLogger()
+    if root.handlers:
+        return  # already configured
+    root.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    fh = logging.FileHandler(log_file)
+    fh.setFormatter(fmt)
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    root.addHandler(fh)
+    root.addHandler(sh)
 
 def utc_day_key() -> str:
     return datetime.now(timezone.utc).date().isoformat()
@@ -60,6 +66,16 @@ COOLDOWN_RESET_VALUE = -10**18  # Far past timestamp to reset cooldowns
 def _load_hmm_labels(symbols: list, exchange, cfg: dict) -> Dict[str, Optional[str]]:
     """Fetch 1d data per symbol and return HMM regime labels.  Fail-open (None)."""
     labels: Dict[str, Optional[str]] = {}
+    
+    # Validate required config keys
+    required_keys = ["regime_timeframe", "limit_1d"]
+    missing_keys = [key for key in required_keys if cfg.get(key) is None]
+    if missing_keys:
+        logger.error(f"HMM labels disabled: missing config keys {missing_keys}")
+        for sym in symbols:
+            labels[sym] = None
+        return labels
+    
     for sym in symbols:
         try:
             df1d = fetch_ohlcv_df(exchange, sym, cfg["regime_timeframe"], cfg["limit_1d"])
