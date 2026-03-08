@@ -15,7 +15,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -125,7 +130,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -236,7 +246,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
