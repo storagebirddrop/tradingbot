@@ -75,6 +75,7 @@ class BacktestConfig:
     ignore_regime_filter: bool = False
     use_atr_sizing: bool = True
     atr_stop_multiplier: float = 2.0
+    skip_sideways: bool = False   # skip entries when ema200_slope ≈ 0 and risk_off
 
 
 @dataclass
@@ -235,7 +236,14 @@ def run_backtest(cfg: BacktestConfig) -> BacktestResult:
                 del positions[sym]
 
         # ---- check entry ----
-        if sym not in positions and len(positions) < cfg.max_positions:
+        # Skip entries in sideways regime if configured
+        skip_entry = False
+        if cfg.skip_sideways:
+            slope = float(sig.get("ema200_slope", 1.0))
+            if (not risk_on) and abs(slope) < 0.001:
+                skip_entry = True
+
+        if sym not in positions and len(positions) < cfg.max_positions and not skip_entry:
             regime_ok = risk_on or ignore_regime
             if regime_ok and entry_signal(sig, prev_sig, strategy=cfg.strategy, params=cfg.params):
                 # ATR-scaled stop
@@ -342,6 +350,7 @@ def walk_forward(cfg: BacktestConfig, n_splits: int = 5, test_ratio: float = 0.2
             ignore_regime_filter=cfg.ignore_regime_filter,
             use_atr_sizing=cfg.use_atr_sizing,
             atr_stop_multiplier=cfg.atr_stop_multiplier,
+            skip_sideways=cfg.skip_sideways,
         )
         results.append(run_backtest(split_cfg))
 
@@ -408,6 +417,7 @@ def purged_cv(cfg: BacktestConfig, n_splits: int = 5, embargo_bars: int = 12) ->
             ignore_regime_filter=cfg.ignore_regime_filter,
             use_atr_sizing=cfg.use_atr_sizing,
             atr_stop_multiplier=cfg.atr_stop_multiplier,
+            skip_sideways=cfg.skip_sideways,
         )
         results.append(run_backtest(split_cfg))
 
@@ -462,7 +472,7 @@ if __name__ == "__main__":
     parser.add_argument("--csv1d",  required=True, help="Path to 1d OHLCV CSV")
     parser.add_argument("--symbol", default="ETH/USDT")
     parser.add_argument("--strategy", default="obv_breakout",
-                        choices=["obv_breakout", "vwap_band_bounce", "rsi_momentum_pullback"])
+                        choices=["obv_breakout", "vwap_band_bounce", "rsi_momentum_pullback", "momentum_breakout"])
     parser.add_argument("--wfo", action="store_true", help="Run walk-forward optimisation")
     parser.add_argument("--cv",  action="store_true", help="Run purged cross-validation")
     parser.add_argument("--capital", type=float, default=10_000.0)
@@ -487,6 +497,10 @@ if __name__ == "__main__":
         "rsi_momentum_pullback":  {"ignore_regime_filter": True,  "adx_threshold": 20,
                                    "rsi_lower": 25, "rsi_upper": 45, "rsi_exit": 68,
                                    "stop_loss_pct": 0.03, "take_profit_pct": 0.08, "max_holding_periods": 20},
+        "momentum_breakout":      {"ignore_regime_filter": False, "adx_threshold": 25,
+                                   "rsi_lower": 55, "rsi_upper": 75, "rsi_exit": 80,
+                                   "volume_ratio_threshold": 1.5,
+                                   "stop_loss_pct": 0.06, "take_profit_pct": 0.20, "max_holding_periods": 20},
     }
 
     cfg = BacktestConfig(
