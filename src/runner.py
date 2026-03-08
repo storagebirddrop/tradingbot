@@ -244,18 +244,22 @@ def run_loop(cfg: dict, broker, market_exchange):
 
         # candle boundary (per-symbol strategy aware)
         for sym in cfg["symbols"]:
-            # Base strategy: symbol_strategy pin, else profile default
+            # Resolution order:
+            #   1. symbol_strategy pin (explicit per-symbol assignment) — highest priority
+            #   2. hmm_regime_strategy routing (only for unpinned symbols)
+            #   3. profile default strategy
+            pinned = sym in symbol_strategy_map
             sym_strategy = symbol_strategy_map.get(sym, default_strategy)
-            # HMM regime override — applied on top of symbol_strategy pin
             hmm_label = hmm_label_cache.get(sym) if hmm_loaded else None
-            if hmm_label and hmm_label in hmm_regime_strategy:
+            if not pinned and hmm_label and hmm_label in hmm_regime_strategy:
                 hmm_override = hmm_regime_strategy[hmm_label]
                 if hmm_override != sym_strategy:
                     logger.info(f"HMM_OVERRIDE {sym} regime={hmm_label} "
                                 f"{sym_strategy} -> {hmm_override}")
                     sym_strategy = hmm_override
-            elif hmm_label:
-                logger.debug(f"HMM_REGIME {sym} regime={hmm_label} strategy={sym_strategy}")
+            if hmm_label:
+                logger.debug(f"HMM_REGIME {sym} pinned={pinned} regime={hmm_label} "
+                             f"strategy={sym_strategy}")
             sym_strategy_cfg = cfg.get(sym_strategy, {})
             max_holding = int(sym_strategy_cfg.get("max_holding_periods", 0))
             ignore_regime = bool(sym_strategy_cfg.get("ignore_regime_filter", False))

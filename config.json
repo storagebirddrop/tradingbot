@@ -59,7 +59,11 @@
         "enabled": false,
         "threshold": 0.55
       },
-      "hmm_regime_strategy": {},
+      "hmm_regime_strategy": {
+        "bull":     "obv_breakout",
+        "sideways": "obv_breakout",
+        "bear":     "rsi_momentum_pullback"
+      },
       "log_file": "paper_bot.log",
       "poll_seconds": 20,
       "status_every_n_loops": 3,
@@ -174,7 +178,11 @@
         "enabled": false,
         "threshold": 0.55
       },
-      "hmm_regime_strategy": {},
+      "hmm_regime_strategy": {
+        "bull":     "obv_breakout",
+        "sideways": "obv_breakout",
+        "bear":     "rsi_momentum_pullback"
+      },
       "log_file": "testnet_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
@@ -292,7 +300,11 @@
         "enabled": false,
         "threshold": 0.55
       },
-      "hmm_regime_strategy": {},
+      "hmm_regime_strategy": {
+        "bull":     "obv_breakout",
+        "sideways": "obv_breakout",
+        "bear":     "rsi_momentum_pullback"
+      },
       "log_file": "live_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
