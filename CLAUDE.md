@@ -71,7 +71,17 @@ The bot is a polling loop that fetches OHLCV candles, computes indicators, gener
 - `*_runtime_state.json` — cooldown timers, daily loss tracking
 - `*_fills_state.json` — fill reconciliation state (exchange profiles only)
 
-**Research scripts**: [research/](research/) — backtesting and strategy validation scripts (not used at runtime).
+**Research scripts**: [research/](research/) — backtesting and strategy validation scripts (not used at runtime):
+- `backtest_engine.py` — `BacktestConfig`, `run_backtest()`, `walk_forward()`, `purged_cv()`
+- `optimize_params.py` — per-symbol grid search over purged CV Sharpe objective
+- `regime_strategy_analysis.py` — HMM regime switching backtest/WFO analysis
+- `train_regime_hmm.py` — train 3-state GaussianHMM on daily OHLCV (bull/sideways/bear)
+- `train_signal_filter.py` — train LightGBM signal quality classifier
+- `fetch_data.py` — download OHLCV history (Binance/CryptoCompare fallback)
+
+**Models**: [models/](models/) — trained model artifacts:
+- `regime_hmm.pkl` — GaussianHMM trained on ETH daily (3352 bars, 2017–2026)
+- `regime_hmm_states.json` — state label mapping + HMM inference config
 
 ## Git Hygiene
 
@@ -99,6 +109,35 @@ Follow these practices for all changes in this repo:
 - **Keep `main` green**: Only merge branches that run without errors (`python3 run_bot.py --profile local_paper` starts cleanly).
 - **`.env` and state files are never committed**: `*.json.enc`, `paper_state.json`, `*_state.json`, `*.csv`, `.env` must stay in `.gitignore`.
 - **Review before pushing**: Run `git diff --stat` and `git log --oneline -5` before pushing to confirm scope.
+
+## MCP Servers Available
+
+These MCP servers are configured and should be used proactively when relevant.
+
+### General Utilities (stdio, auto-spawned)
+- **filesystem** (`filesystem`) — Local filesystem read/write via Node.js server at `/home/dribble0335/filesystem-mcp-server/`.
+- **fetch** (`fetch`) — HTTP fetch tool for retrieving web content. Via `npx mcp-fetch-server`.
+- **sequential-thinking** (`sequential-thinking`) — Step-by-step reasoning scaffolding. Via `npx @modelcontextprotocol/server-sequential-thinking`.
+- **context7** (`context7`) — Up-to-date library documentation lookup. Via `npx @upstash/context7-mcp`.
+- **github** (`github`) — GitHub API: issues, PRs, repos, code search. Via `npx @modelcontextprotocol/server-github`.
+- **git** (`git`) — Git operations (log, diff, commit, etc). Via `npx @cyanheads/git-mcp-server`.
+- **firecrawl** (`firecrawl`) — Web scraping and crawling. Via `npx firecrawl-mcp`. Requires `FIRECRAWL_API_KEY`.
+
+### Remote / Always-On (no pre-start needed)
+- **deepwiki** (`deepwiki`) — Deep Wikipedia search and knowledge lookup. SSE endpoint: `https://mcp.deepwiki.com/mcp`.
+- **composer** (`composer`) — Automated investment strategy research and execution on Composer.trade. HTTP endpoint: `https://ai.composer.trade/mcp`. Requires Composer account (OAuth in browser).
+
+### HTTP servers (must be running — start via systemd)
+- **graphiti** (`graphiti`) — Local knowledge graph memory (Neo4j + Ollama). Persists entities and facts across sessions. Endpoint: `http://localhost:8000/mcp/`. Start: `systemctl --user start graphiti-mcp`. Config: `/home/dribble0335/graphiti/mcp_server/config/config-local-ollama.yaml`.
+- **fmp-imbenrabi** (`fmp-imbenrabi`) — Financial Modeling Prep, 253+ tools (stocks, earnings, macro, technicals, insider data). Endpoint: `http://localhost:8082/mcp`. Start: `systemctl --user start fmp-imbenrabi`. Most comprehensive FMP server.
+
+### Trading & Market Data (stdio, auto-spawned)
+- **alpaca** (`alpaca`) — Paper trading execution, account info, order management, portfolio queries. Via `uvx alpaca-mcp-server`. Pointed at paper-trading endpoint (safe, no real money).
+- **quantconnect** (`quantconnect`) — Backtesting, strategy research, historical data, algorithm deployment. Via `uvx quantconnect-mcp`. Use when running or evaluating backtests.
+- **alphavantage** (`alphavantage`) — Market data: OHLCV, fundamentals, earnings, economic indicators, forex, crypto. Via `uvx alphavantage-mcp`. Free tier: 500 req/day.
+- **fmp-houtini** (`fmp-houtini`) — FMP financial data, focused tool set. Via `npx @houtini/fmp-mcp`. Uses `FMP_API_KEY`.
+- **fmp-vipbat** (`fmp-vipbat`) — Lightweight Python FMP stdio server. Binary: `/home/dribble0335/vipbat-fmp-mcp/.venv/bin/python`. Uses `FMP_API_KEY`.
+- **finance-tools** (`finance-tools`) — Yahoo Finance, FRED macro data, technical analysis (TA-Lib). Binary: `/home/dribble0335/finance-tools-mcp-env/bin/finance-tools-mcp`. No API key required for basic use.
 
 ## Key Design Decisions
 

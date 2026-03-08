@@ -56,10 +56,22 @@ def compute_4h_indicators(df4h: pd.DataFrame) -> pd.DataFrame:
     # ATR (Average True Range) — used for volatility-aware stop sizing
     d["atr"] = ta.atr(d["high"], d["low"], d["close"], length=14)
 
+    # Bollinger Band lower band — used for bb_proximity_pct filter in rsi_momentum_pullback
+    bb_result = ta.bbands(d["close"], length=20, std=2.0)
+    if bb_result is not None:
+        bbl_col = [c for c in bb_result.columns if c.startswith("BBL_")]
+        d["bb_lower"] = bb_result[bbl_col[0]] if bbl_col else np.nan
+    else:
+        d["bb_lower"] = np.nan
+
     # Supertrend — dynamic support/resistance trend line
     st = ta.supertrend(d["high"], d["low"], d["close"], length=10, multiplier=3.0)
     d["supertrend"] = st["SUPERT_10_3.0"]
     d["supertrend_dir"] = st["SUPERTd_10_3.0"]  # 1 = bullish, -1 = bearish
+
+    # Donchian Channel — 20-bar rolling high/low for breakout detection
+    d["donchian_high"] = d["high"].rolling(window=20).max().shift(1)  # shift(1) avoids lookahead
+    d["donchian_low"]  = d["low"].rolling(window=20).min().shift(1)
 
     # On-Balance Volume (OBV)
     d["obv"] = ta.obv(d["close"], d["volume"])
@@ -315,6 +327,14 @@ def rsi_momentum_pullback_signal(sig: pd.Series, prev_sig: pd.Series, funding_ra
     if not (above_sma200 and trend_exists and pulled_back and momentum_score >= 2):
         return False
 
+    # BB proximity filter: require price within bb_proximity_pct above BB lower band
+    bb_prox = params.get("bb_proximity_pct", None)
+    if bb_prox is not None:
+        bb_lower = sig.get("bb_lower", float("nan"))
+        if bb_lower == bb_lower and bb_lower > 0:  # not NaN
+            if (sig["close"] - bb_lower) / bb_lower > float(bb_prox):
+                return False
+
     # Funding rate filter: block entry when longs are too crowded
     if funding_rate is not None:
         block_above = float(params.get("funding_block_long_above", 0.0005))
@@ -369,7 +389,57 @@ def obv_breakout_signal(sig: pd.Series, prev_sig: pd.Series, funding_rate=None, 
     if not (obv_trending and accumulation and green_candle and volume_confirming):
         return False
 
+    # ADX upper bound: block entry when ADX exceeds threshold (market too trending for sideways OBV filter)
+    adx_upper = params.get("adx_upper_threshold", None)
+    if adx_upper is not None and sig["adx"] > float(adx_upper):
+        return False
+
     # Funding rate filter: block entry when perpetual longs are overcrowded
+    if funding_rate is not None:
+        block_above = float(params.get("funding_block_long_above", 0.0005))
+        if funding_rate > block_above:
+            return False
+
+    return True
+
+
+def momentum_breakout_signal(sig: pd.Series, prev_sig: pd.Series, funding_rate=None, params: dict = None) -> bool:
+    """
+    Donchian-channel momentum breakout.
+    Designed for high-beta narrative tokens (e.g. TAO) that move in violent
+    multi-week surges rather than gradual OBV accumulations.
+
+    Entry conditions (all required):
+      1. Close breaks above the prior 20-bar Donchian high (new breakout)
+      2. ADX > 25 — trend is strong, not a whipsaw
+      3. RSI 55–75 — momentum zone: trending but not yet overextended
+      4. Volume > 1.5× SMA — surge confirmed by participation
+
+    Optional: funding_rate filter blocks entries when longs are too crowded.
+    """
+    params = params or {}
+    adx_threshold  = float(params.get("adx_threshold", 25))
+    rsi_lower      = float(params.get("rsi_lower", 55))
+    rsi_upper      = float(params.get("rsi_upper", 75))
+    vol_threshold  = float(params.get("volume_ratio_threshold", 1.5))
+
+    donchian_high  = sig.get("donchian_high", float("nan"))
+    try:
+        donchian_high = float(donchian_high)
+    except (TypeError, ValueError):
+        return False
+    if donchian_high != donchian_high:  # NaN
+        return False
+
+    breakout       = sig["close"] > donchian_high
+    strong_trend   = sig["adx"] > adx_threshold
+    rsi_val        = sig["rsi"]
+    momentum_zone  = rsi_lower < rsi_val < rsi_upper
+    volume_surge   = sig["volume_ratio"] > vol_threshold
+
+    if not (breakout and strong_trend and momentum_zone and volume_surge):
+        return False
+
     if funding_rate is not None:
         block_above = float(params.get("funding_block_long_above", 0.0005))
         if funding_rate > block_above:
@@ -387,6 +457,8 @@ def entry_signal(sig: pd.Series, prev_sig: pd.Series, strategy: str = "rsi_momen
         return vwap_band_bounce_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
     elif strategy == "obv_breakout":
         return obv_breakout_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
+    elif strategy == "momentum_breakout":
+        return momentum_breakout_signal(sig, prev_sig, funding_rate=funding_rate, params=params)
     return False
 
 
@@ -400,6 +472,10 @@ def exit_signal(sig: pd.Series, strategy: str = "rsi_momentum_pullback", params:
     elif strategy == "obv_breakout":
         # Require both OBV trend broken AND MACD histogram negative to avoid whipsaws
         return sig["obv"] < sig["obv_sma"] and sig["MACDh_12_26_9"] < 0
+    elif strategy == "momentum_breakout":
+        # Exit when RSI overextended OR price drops back below Supertrend
+        rsi_exit = float(params.get("rsi_exit", 80))
+        return sig["rsi"] > rsi_exit or sig["supertrend_dir"] == -1
     return False
 
 

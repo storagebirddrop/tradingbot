@@ -67,6 +67,7 @@ Thumbs.db
 *.json
 !config.json
 !requirements.json
+!models/regime_hmm_states.json
 
 # Logs
 *.log

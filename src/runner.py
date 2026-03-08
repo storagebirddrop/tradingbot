@@ -5,20 +5,28 @@ from typing import Dict, Optional
 
 import math
 from .strategy import (timeframe_seconds, entry_signal, exit_signal,
-                      compute_atr_stop, classify_volatility_regime)
-from .brokers import get_latest_signal_rows, get_current_tf_open_ts
+                      compute_atr_stop, classify_volatility_regime,
+                      drop_incomplete_last_candle)
+from .brokers import get_latest_signal_rows, get_current_tf_open_ts, fetch_ohlcv_df
 from .signal_filter import init_filter
+from . import regime_model
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('bot.log'),
-        logging.StreamHandler()
-    ]
-)
 logger = logging.getLogger(__name__)
+
+
+def configure_logging(log_file: str = "bot.log") -> None:
+    """Configure root logger with file + stream handlers.  Call once at startup."""
+    root = logging.getLogger()
+    if root.handlers:
+        return  # already configured
+    root.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    fh = logging.FileHandler(log_file)
+    fh.setFormatter(fmt)
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    root.addHandler(fh)
+    root.addHandler(sh)
 
 def utc_day_key() -> str:
     return datetime.now(timezone.utc).date().isoformat()
@@ -55,9 +63,36 @@ def save_runtime_state(path: str, state: dict) -> None:
 # Constants
 COOLDOWN_RESET_VALUE = -10**18  # Far past timestamp to reset cooldowns
 
+def _load_hmm_labels(symbols: list, exchange, cfg: dict) -> Dict[str, Optional[str]]:
+    """Fetch 1d data per symbol and return HMM regime labels.  Fail-open (None)."""
+    labels: Dict[str, Optional[str]] = {}
+    
+    # Validate required config keys
+    required_keys = ["regime_timeframe", "limit_1d"]
+    missing_keys = [key for key in required_keys if cfg.get(key) is None]
+    if missing_keys:
+        logger.error(f"HMM labels disabled: missing config keys {missing_keys}")
+        for sym in symbols:
+            labels[sym] = None
+        return labels
+    
+    for sym in symbols:
+        try:
+            df1d = fetch_ohlcv_df(exchange, sym, cfg["regime_timeframe"], cfg["limit_1d"])
+            df1d = drop_incomplete_last_candle(df1d, cfg["regime_timeframe"])
+            labels[sym] = regime_model.predict_regime(df1d)
+        except Exception as e:
+            logger.warning(f"HMM label refresh failed for {sym}: {e}")
+            labels[sym] = None
+    return labels
+
+
 def run_loop(cfg: dict, broker, market_exchange):
     logger.info(f"Starting bot loop with {len(cfg['symbols'])} symbols")
     signal_filter = init_filter(cfg)
+    hmm_loaded = regime_model.load_hmm()
+    hmm_label_cache: Dict[str, Optional[str]] = {}
+    hmm_label_day: str = ""
     if signal_filter.is_enabled():
         logger.info("Signal filter ENABLED (LightGBM)")
     tf_sec = timeframe_seconds(cfg["signal_timeframe"])
@@ -140,6 +175,12 @@ def run_loop(cfg: dict, broker, market_exchange):
         if rt.get("day_start_equity") is None and eq_now is not None:
             rt["day_start_equity"] = eq_now
 
+        # Refresh HMM regime labels once per UTC day (or on first loop)
+        if hmm_loaded and (hmm_label_day != current_day):
+            hmm_label_cache = _load_hmm_labels(cfg["symbols"], market_exchange, cfg)
+            hmm_label_day = current_day
+            logger.info(f"HMM_LABELS refreshed: { {s: hmm_label_cache.get(s) for s in cfg['symbols']} }")
+
         limit_pct = float(cfg.get("daily_loss_limit_pct", 0.0))
         if limit_pct > 0 and eq_now is not None and rt.get("day_start_equity") is not None:
             day_start = float(rt["day_start_equity"])
@@ -170,6 +211,7 @@ def run_loop(cfg: dict, broker, market_exchange):
 
         default_strategy = cfg.get("strategy", "rsi_momentum_pullback")
         symbol_strategy_map = cfg.get("symbol_strategy", {})
+        hmm_regime_strategy = cfg.get("hmm_regime_strategy", {})
 
         # trailing updates + take profit (per-symbol strategy aware)
         for sym, pos in list(broker.positions().items()):
@@ -202,7 +244,18 @@ def run_loop(cfg: dict, broker, market_exchange):
 
         # candle boundary (per-symbol strategy aware)
         for sym in cfg["symbols"]:
+            # Base strategy: symbol_strategy pin, else profile default
             sym_strategy = symbol_strategy_map.get(sym, default_strategy)
+            # HMM regime override — applied on top of symbol_strategy pin
+            hmm_label = hmm_label_cache.get(sym) if hmm_loaded else None
+            if hmm_label and hmm_label in hmm_regime_strategy:
+                hmm_override = hmm_regime_strategy[hmm_label]
+                if hmm_override != sym_strategy:
+                    logger.info(f"HMM_OVERRIDE {sym} regime={hmm_label} "
+                                f"{sym_strategy} -> {hmm_override}")
+                    sym_strategy = hmm_override
+            elif hmm_label:
+                logger.debug(f"HMM_REGIME {sym} regime={hmm_label} strategy={sym_strategy}")
             sym_strategy_cfg = cfg.get(sym_strategy, {})
             max_holding = int(sym_strategy_cfg.get("max_holding_periods", 0))
             ignore_regime = bool(sym_strategy_cfg.get("ignore_regime_filter", False))

@@ -1,0 +1,20 @@
+{
+  "state_labels": {
+    "1": "bear",
+    "2": "sideways",
+    "0": "bull"
+  },
+  "prob_threshold": 0.7,
+  "hold_bars": 2,
+  "smooth_span": 3,
+  "training_symbol": "ETH",
+  "n_bars": 3352,
+  "feature_names": [
+    "daily_ret",
+    "ret_5d",
+    "vol_zscore",
+    "atr_ratio",
+    "sma200_slope",
+    "sma200_dist"
+  ]
+}

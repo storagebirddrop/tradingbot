@@ -9,7 +9,7 @@ from typing import Dict, Any
 load_dotenv()
 
 from .brokers import PaperBroker, ExchangeBroker
-from .runner import run_loop
+from .runner import run_loop, configure_logging
 
 def validate_strategy_parameters(strategy_params: Dict[str, Any]) -> None:
     """Validate strategy parameters against safe ranges"""
@@ -90,6 +90,10 @@ def main():
             print("✅ Configuration validation passed")
             return
         
+        # Configure logging to profile-specific log file
+        log_file = config.get("log_file", f"{args.profile}.log")
+        configure_logging(log_file)
+
         # Create broker
         broker, market_exchange = create_broker(config)
 

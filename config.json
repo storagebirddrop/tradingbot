@@ -15,7 +15,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -54,6 +59,8 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
+      "log_file": "paper_bot.log",
       "poll_seconds": 20,
       "status_every_n_loops": 3,
       "limit_4h": 800,
@@ -66,10 +73,10 @@
       "rsi_momentum_pullback": {
         "ignore_regime_filter": true,
         "adx_threshold": 20,
-        "rsi_lower": 25,
-        "rsi_upper": 45,
+        "rsi_lower": 20,
+        "rsi_upper": 40,
         "rsi_exit": 68,
-        "stop_loss_pct": 0.03,
+        "stop_loss_pct": 0.04,
         "take_profit_pct": 0.08,
         "max_holding_periods": 20,
         "risk_per_trade": 0.03
@@ -91,6 +98,19 @@
         "max_holding_periods": 30,
         "trail_pct": 0.04,
         "risk_per_trade": 0.03
+      },
+      "momentum_breakout": {
+        "ignore_regime_filter": false,
+        "adx_threshold": 25,
+        "rsi_lower": 55,
+        "rsi_upper": 75,
+        "rsi_exit": 80,
+        "volume_ratio_threshold": 1.5,
+        "stop_loss_pct": 0.06,
+        "take_profit_pct": 0.20,
+        "max_holding_periods": 20,
+        "trail_pct": 0.06,
+        "risk_per_trade": 0.01
       }
     },
     "phemex_testnet": {
@@ -112,7 +132,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -149,6 +174,8 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
+      "log_file": "testnet_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
@@ -164,10 +191,10 @@
       "rsi_momentum_pullback": {
         "ignore_regime_filter": true,
         "adx_threshold": 20,
-        "rsi_lower": 25,
-        "rsi_upper": 45,
+        "rsi_lower": 20,
+        "rsi_upper": 40,
         "rsi_exit": 68,
-        "stop_loss_pct": 0.03,
+        "stop_loss_pct": 0.04,
         "take_profit_pct": 0.08,
         "max_holding_periods": 20,
         "risk_per_trade": 0.03
@@ -188,6 +215,19 @@
         "take_profit_pct": 0.10,
         "max_holding_periods": 30,
         "trail_pct": 0.04,
+        "risk_per_trade": 0.03
+      },
+      "momentum_breakout": {
+        "ignore_regime_filter": false,
+        "adx_threshold": 25,
+        "rsi_lower": 55,
+        "rsi_upper": 75,
+        "rsi_exit": 80,
+        "volume_ratio_threshold": 1.5,
+        "stop_loss_pct": 0.06,
+        "take_profit_pct": 0.20,
+        "max_holding_periods": 20,
+        "trail_pct": 0.06,
         "risk_per_trade": 0.03
       }
     },
@@ -210,7 +250,12 @@
         "RUNE/USDT"
       ],
       "symbol_strategy": {
-        "VTHO/USDT": "vwap_band_bounce"
+        "VTHO/USDT": "vwap_band_bounce",
+        "SOL/USDT":  "rsi_momentum_pullback",
+        "TRX/USDT":  "rsi_momentum_pullback",
+        "LTC/USDT":  "rsi_momentum_pullback",
+        "BAT/USDT":  "rsi_momentum_pullback",
+        "RUNE/USDT": "rsi_momentum_pullback"
       },
       "signal_timeframe": "4h",
       "regime_timeframe": "1d",
@@ -247,6 +292,8 @@
         "enabled": false,
         "threshold": 0.55
       },
+      "hmm_regime_strategy": {},
+      "log_file": "live_bot.log",
       "poll_seconds": 15,
       "status_every_n_loops": 4,
       "limit_4h": 800,
@@ -262,10 +309,10 @@
       "rsi_momentum_pullback": {
         "ignore_regime_filter": true,
         "adx_threshold": 20,
-        "rsi_lower": 25,
-        "rsi_upper": 45,
+        "rsi_lower": 20,
+        "rsi_upper": 40,
         "rsi_exit": 68,
-        "stop_loss_pct": 0.03,
+        "stop_loss_pct": 0.04,
         "take_profit_pct": 0.08,
         "max_holding_periods": 20,
         "risk_per_trade": 0.01
@@ -286,6 +333,19 @@
         "take_profit_pct": 0.10,
         "max_holding_periods": 30,
         "trail_pct": 0.04,
+        "risk_per_trade": 0.01
+      },
+      "momentum_breakout": {
+        "ignore_regime_filter": false,
+        "adx_threshold": 25,
+        "rsi_lower": 55,
+        "rsi_upper": 75,
+        "rsi_exit": 80,
+        "volume_ratio_threshold": 1.5,
+        "stop_loss_pct": 0.06,
+        "take_profit_pct": 0.20,
+        "max_holding_periods": 20,
+        "trail_pct": 0.06,
         "risk_per_trade": 0.01
       }
     }
