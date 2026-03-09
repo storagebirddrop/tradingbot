@@ -32,9 +32,10 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Copy application code
+# Copy application code and required runtime assets
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY models/ ./models/
 COPY config.json .
 
 # Create persistent directories (state/ for encrypted state files)
