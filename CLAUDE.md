@@ -83,6 +83,30 @@ The bot is a polling loop that fetches OHLCV candles, computes indicators, gener
 - `regime_hmm.pkl` — GaussianHMM trained on ETH daily (3352 bars, 2017–2026)
 - `regime_hmm_states.json` — state label mapping + HMM inference config
 
+## Docker Deployment
+
+The bot can be run via Docker Compose for consistent, isolated deployments.
+
+```bash
+# Smoke test (paper, local image)
+docker build -t phemex-bot:local .
+docker run --rm --env-file .env \
+  -v $(pwd)/config.json:/app/config.json:ro \
+  -v $(pwd)/state:/app/state \
+  -v $(pwd)/logs:/app/logs \
+  phemex-bot:local python3 -m src.run_bot --profile local_paper
+
+# Deploy testnet
+docker compose --profile testnet up -d
+
+# Deploy live (only after 24h clean testnet run)
+docker compose --profile live up -d
+```
+
+**Before any deployment, run through the full checklist in [docs/deploy-sop.md](docs/deploy-sop.md).**
+
+All log/CSV paths use `logs/` prefix and `HEALTHCHECK` uses module syntax — both verified 2026-03-09.
+
 ## Git Hygiene
 
 Follow these practices for all changes in this repo:

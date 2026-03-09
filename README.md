@@ -88,12 +88,15 @@ tradingbot/
 
 **2. Set directory permissions:**
 
-The container runs as a non-root user (`botuser`). The `state/` and `logs/` directories
-must be writable by the container process:
+The container runs as your host user (uid/gid injected via `UID`/`GID` env vars, defaulting to 1000).
+Export them before running so Docker Compose picks them up:
 
 ```bash
-chmod 777 state logs
+export UID GID
+chmod 755 state logs
 ```
+
+> On most Linux systems `UID` is already exported. If you see permission errors, verify with `id -u`.
 
 **3. Create `.env`:**
 
