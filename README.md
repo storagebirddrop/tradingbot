@@ -12,31 +12,28 @@ The bot is a polling loop that fetches OHLCV candles, computes indicators, gener
 
 | File | Role |
 |------|------|
-| [run_bot.py](run_bot.py) | Entry point — loads profile, validates config, starts loop |
-| [runner.py](runner.py) | `run_loop()` — polls candles, calls strategy, manages positions |
+| [src/run_bot.py](src/run_bot.py) | Entry point — loads profile, validates config, starts loop |
+| [src/runner.py](src/runner.py) | `run_loop()` — polls candles, calls strategy, manages positions |
 | [src/strategy.py](src/strategy.py) | Pure indicator + signal functions (no side effects) |
-| [brokers.py](brokers.py) | `PaperBroker` / `ExchangeBroker` — unified order interface |
+| [src/brokers.py](src/brokers.py) | `PaperBroker` / `ExchangeBroker` — unified order interface |
 | [config.json](config.json) | All trading profiles and strategy parameters |
 
 ---
 
 ## Strategies
 
-Three strategies are implemented, selected per-profile or per-symbol:
+Three strategies are implemented, selected per-profile or per-symbol via `symbol_strategy` in config:
 
 ### `obv_breakout` (default)
 OBV accumulation + volume breakout, trend-following.
-Active pairs: ETH, SOL, TRX, ADA, BAT, LTC, RUNE.
-SL 4%, TP 10%, max 30 candles.
-
-### `vwap_band_bounce`
-Mean reversion at VWAP lower band (−2σ). Active pair: VTHO.
-SL 3.5%, TP 6%, max 12 candles.
+Active pairs: ETH, ADA. SL 4%, TP 10%, max 30 candles.
 
 ### `rsi_momentum_pullback`
 RSI pullback in SMA200 uptrend. 2-of-3 momentum scoring (MACDh, ImpulseMACD, StochRSI).
 Bypasses regime filter (`ignore_regime_filter: true`).
-Per-symbol optimized OOS Sharpe (purged CV, 5 folds):
+Active pairs: SOL, TRX, LTC, BAT, RUNE, NEAR.
+
+Per-symbol OOS Sharpe (purged CV, 5 folds):
 
 | Symbol | OOS Sharpe |
 |--------|-----------|
@@ -46,7 +43,9 @@ Per-symbol optimized OOS Sharpe (purged CV, 5 folds):
 | TRX | 0.691 |
 | LTC | 0.299 |
 
-Per-symbol strategy routing: `"symbol_strategy": {"VTHO/USDT": "vwap_band_bounce"}` in config.
+### `vwap_band_bounce`
+Mean reversion at VWAP lower band (−2σ). Active pair: VTHO.
+SL 3.5%, TP 6%, max 12 candles.
 
 ---
 
@@ -56,84 +55,92 @@ Per-symbol strategy routing: `"symbol_strategy": {"VTHO/USDT": "vwap_band_bounce
 |---------|------|----------|-------------|
 | `local_paper` | Paper | No | Strategy testing with live market data |
 | `phemex_testnet` | Exchange | Yes | Testnet with simulated funds |
-| `phemex_live` | Exchange | Yes | Production (dry_run: true by default) |
+| `phemex_live` | Exchange | Yes | Production (`dry_run: true` by default) |
 
-**Production and staging profiles require `BOT_ENCRYPTION_KEY` in `.env`** for state file encryption. In development mode (`BOT_ENV=development`), the key requirement is bypassed for local testing.
+Exchange profiles require `BOT_ENCRYPTION_KEY` in `.env` for state file encryption.
 
 ---
 
-## Deployment (Docker / Dockge)
+## Deployment
+
+### Option A — Docker (Dockge or CLI)
 
 The image is built and pushed to `ghcr.io` automatically on every push to `main` via GitHub Actions.
-No source code is needed on the host — only a `docker-compose.yml`, `.env`, and `config.json`.
+The host only needs `docker-compose.yml`, `.env`, and `config.json` — no source code.
 
-### First-time setup on the host
+**First-time setup:**
 
 ```bash
 # Create persistent directories
 mkdir -p state data logs
 
-# Copy and fill in secrets
+# Set up environment
 cp .env.template .env
-# Set BOT_ENCRYPTION_KEY, PHEMEX_API_KEY, PHEMEX_API_SECRET in .env
-# Set GITHUB_REPOSITORY=your-github-username/tradingbot in .env (used by docker-compose)
+# Edit .env: BOT_ENCRYPTION_KEY, PHEMEX_API_KEY, PHEMEX_API_SECRET
+# Also set: GITHUB_REPOSITORY=your-github-username/tradingbot
 
-# Copy config (or mount your own edited version)
-cp config.json config.json
-
-# Start (choose one profile)
-docker compose --profile paper up -d     # paper trading
-docker compose --profile testnet up -d   # testnet
-docker compose --profile live up -d      # live
+# Download config (or copy from repo)
+# Then start one profile:
+docker compose --profile paper up -d
+docker compose --profile testnet up -d
+docker compose --profile live up -d
 ```
 
-### Updating (Dockge or CLI)
+**Updating (Dockge or CLI):**
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose pull && docker compose up -d
 ```
 
 The bot handles `SIGTERM` gracefully: it completes the current polling iteration (≤ 30 s),
-persists all encrypted state to `./state/`, then exits. Active positions survive restarts.
+persists all state to `./state/`, then exits. Active positions survive restarts.
 
-### State file migration
+**Generate an encryption key:**
 
-If you have existing `*_state.json` files from a previous deployment, move them into `state/`:
 ```bash
-mkdir -p state
-mv *_state.json *_runtime_state.json *_fills_state.json state/ 2>/dev/null || true
+python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
 ```
 
 ---
 
-## Quick Start
+### Option B — VM / LXC (bare-metal)
 
 ```bash
-# Setup
+# Clone and set up
+git clone https://github.com/your-github-username/tradingbot.git
+cd tradingbot
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.template .env   # Add BOT_ENCRYPTION_KEY (skip if BOT_ENV=development)
+cp .env.template .env   # fill in BOT_ENCRYPTION_KEY (or set BOT_ENV=development for local testing)
 
-# Paper trading (no API keys needed)
-python3 run_bot.py --profile local_paper
+# Create state directory
+mkdir -p state
 
-# Or via shell wrapper
-./run_bot.sh local_paper
+# Run
+python3 -m src.run_bot --profile local_paper      # paper trading
+python3 -m src.run_bot --profile phemex_testnet   # testnet
+python3 -m src.run_bot --profile phemex_live      # live
 ```
 
-### Environment Variables (`.env`)
+**Updating:**
 
 ```bash
-BOT_ENCRYPTION_KEY=<32-byte base64 key>   # required for production/staging
-PHEMEX_API_KEY=<key>                       # required — exchange profiles
-PHEMEX_API_SECRET=<secret>                 # required — exchange profiles
-BOT_ENV=development                        # skip key requirement in dev/test
+git pull
+pip install -r requirements.txt
 ```
 
-Generate an encryption key:
+---
+
+## Environment Variables (`.env`)
+
 ```bash
-python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
+BOT_ENCRYPTION_KEY=<32-byte base64 key>   # required for exchange profiles
+PHEMEX_API_KEY=<key>                       # required for exchange profiles
+PHEMEX_API_SECRET=<secret>                 # required for exchange profiles
+ENABLE_TESTNET_TRADING=YES                 # required for testnet profile
+ENABLE_LIVE_TRADING=YES                    # required for live profile
+BOT_ENV=development                        # skip key requirement (local dev only)
+GITHUB_REPOSITORY=owner/tradingbot         # used by docker-compose image reference
 ```
 
 ---
@@ -142,21 +149,27 @@ python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64e
 
 ```bash
 # Health check
-python3 healthcheck.py
+python3 -m src.healthcheck --profile local_paper
 
 # Equity curve
-python3 equity_report.py --equity-log paper_equity.csv --starting 50
-python3 plot_equity.py
+python3 scripts/equity_report.py --equity-log paper_equity.csv --starting 50
+python3 scripts/plot_equity.py
 
 # Trade summary
-python3 trades_report.py --trades-log paper_trades.csv
+python3 scripts/trades_report.py --trades-log paper_trades.csv
 
 # Reconcile fills vs orders
-python3 reconcile.py
+python3 scripts/reconcile.py
 
 # Live log
-tail -f bot.log
-grep -E "FUNDING_RATE|SIGNAL_FILTERED|ENTRY|EXIT" bot.log
+tail -f local_paper.log
+grep -E "FUNDING_RATE|SIGNAL_FILTERED|HMM_LABELS|ENTRY|EXIT" local_paper.log
+```
+
+For Docker, prefix with `docker compose exec bot-paper`:
+```bash
+docker compose exec bot-paper python3 -m src.healthcheck --profile local_paper
+docker compose logs -f bot-paper
 ```
 
 ---
@@ -164,7 +177,7 @@ grep -E "FUNDING_RATE|SIGNAL_FILTERED|ENTRY|EXIT" bot.log
 ## Risk Controls
 
 - **ATR sizing**: `use_atr_sizing: true` — tightens stops in volatile conditions
-- **Regime filter**: `compute_daily_regime()` gates entries in bear regime; `risk_off_exits` force-exits on flip
+- **HMM regime filter**: `compute_daily_regime()` gates entries in bear regime; `risk_off_exits` force-exits on flip
 - **Daily loss limit**: halts entries when daily drawdown exceeds `daily_loss_limit_pct`
 - **API circuit breaker**: halts loop after `api_error_threshold` errors in `api_error_window_sec`
 - **Vol regime params**: scales stop multiplier and position size by volatility tier (high/normal/low)
@@ -189,7 +202,7 @@ Located in [research/](research/):
 # Fetch data
 python3 research/fetch_data.py --symbol ETH --since 2020-01-01
 
-# Optimize RSI pullback params for ETH and SOL
+# Optimize RSI pullback params
 python3 research/optimize_params.py --symbols ETH SOL --strategy rsi_momentum_pullback --out-json
 
 # Train / retrain HMM regime model
@@ -206,10 +219,9 @@ python3 research/regime_strategy_analysis.py \
 
 ## Security
 
-- State files (`*_state.json`) are Fernet-encrypted at rest; written atomically via `.tmp` + `os.replace`
+- State files (`state/*_state.json`) are Fernet-encrypted at rest; written atomically via `.tmp` + `os.replace`
 - `.env`, `*.json.enc`, state files, and CSVs are gitignored
-- `BOT_ENV=development` bypasses key requirement for local dev only
-- **Security Warning**: Never run with `BOT_ENV=development` in production - always set `BOT_ENCRYPTION_KEY` in production/staging environments
+- `BOT_ENV=development` bypasses key requirement for local dev only — never use in production
 
 ---
 
