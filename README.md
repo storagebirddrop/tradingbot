@@ -62,6 +62,51 @@ Per-symbol strategy routing: `"symbol_strategy": {"VTHO/USDT": "vwap_band_bounce
 
 ---
 
+## Deployment (Docker / Dockge)
+
+The image is built and pushed to `ghcr.io` automatically on every push to `main` via GitHub Actions.
+No source code is needed on the host — only a `docker-compose.yml`, `.env`, and `config.json`.
+
+### First-time setup on the host
+
+```bash
+# Create persistent directories
+mkdir -p state data logs
+
+# Copy and fill in secrets
+cp .env.template .env
+# Set BOT_ENCRYPTION_KEY, PHEMEX_API_KEY, PHEMEX_API_SECRET in .env
+# Set GITHUB_REPOSITORY=your-github-username/tradingbot in .env (used by docker-compose)
+
+# Copy config (or mount your own edited version)
+cp config.json config.json
+
+# Start (choose one profile)
+docker compose --profile paper up -d     # paper trading
+docker compose --profile testnet up -d   # testnet
+docker compose --profile live up -d      # live
+```
+
+### Updating (Dockge or CLI)
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The bot handles `SIGTERM` gracefully: it completes the current polling iteration (≤ 30 s),
+persists all encrypted state to `./state/`, then exits. Active positions survive restarts.
+
+### State file migration
+
+If you have existing `*_state.json` files from a previous deployment, move them into `state/`:
+```bash
+mkdir -p state
+mv *_state.json *_runtime_state.json *_fills_state.json state/ 2>/dev/null || true
+```
+
+---
+
 ## Quick Start
 
 ```bash

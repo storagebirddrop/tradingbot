@@ -1,7 +1,17 @@
-import time, json, os, logging
+import time, json, os, logging, signal as _signal
 from collections import deque
 from datetime import datetime, timezone
 from typing import Dict, Optional
+
+_shutdown_requested = False
+
+def _handle_shutdown(signum, frame):
+    global _shutdown_requested
+    _shutdown_requested = True
+    logging.getLogger(__name__).info("SHUTDOWN_SIGNAL received — will exit after current loop iteration")
+
+_signal.signal(_signal.SIGTERM, _handle_shutdown)
+_signal.signal(_signal.SIGINT, _handle_shutdown)
 
 import math
 import ccxt
@@ -128,6 +138,11 @@ def run_loop(cfg: dict, broker, market_exchange):
     loop = 0
 
     while True:
+        if _shutdown_requested:
+            logger.info("SHUTDOWN_CLEAN — persisting state and exiting")
+            broker.persist()
+            save_runtime_state(runtime_path, rt)
+            break
         loop += 1
         now = time.time()
 
