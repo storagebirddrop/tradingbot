@@ -90,6 +90,9 @@ def main():
             print("✅ Configuration validation passed")
             return
         
+        # Inject profile name so ExchangeBroker can select the right API keys
+        config["profile"] = args.profile
+
         # Configure logging to profile-specific log file
         log_file = config.get("log_file", f"{args.profile}.log")
         configure_logging(log_file)
