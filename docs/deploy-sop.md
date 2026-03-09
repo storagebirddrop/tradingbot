@@ -85,16 +85,16 @@ No `❌ Error` lines. No `FileNotFoundError`. Kill with `Ctrl+C` once confirmed 
 
 ## 5. Volume Permission Check
 
-The container runs as `botuser` (non-root). Host-mounted directories must be writable by that user.
-If state/log writes fail, fix with:
+The compose file injects `user: "${UID:-1000}:${GID:-1000}"` so the container runs as the host user.
+Before starting, export your uid/gid so Docker Compose picks them up:
 
 ```bash
-# Get the botuser UID from the image
-docker run --rm phemex-bot:local id botuser
-
-# Set ownership on host dirs to match (replace 999 with actual UID)
-sudo chown -R 999:999 state/ logs/
+export UID GID
+chmod 755 state/ logs/
 ```
+
+This avoids any permission mismatch between host-mounted volumes and the container process.
+If you still see `Permission denied` errors, verify your uid matches with `id -u`.
 
 ---
 
@@ -181,3 +181,6 @@ docker compose --profile paper --profile testnet --profile live down
 | # | Issue | Fix |
 |---|-------|-----|
 | 1 | VTHO ticker fetch fails on testnet (expected — no VTHO on Phemex testnet) | Not a live issue; informational only |
+| 2 | `numba` JIT cache write fails as non-root | Fixed: `NUMBA_CACHE_DIR=/tmp/numba_cache` in Dockerfile |
+| 3 | `hmmlearn` missing from image (HMM regime model silently skipped) | Fixed: `hmmlearn>=0.3.0` in requirements.txt |
+| 4 | Volume permission denied if container uid ≠ host uid | Fixed: `user: "${UID:-1000}:${GID:-1000}"` in docker-compose.yml — run `export UID GID` before starting |

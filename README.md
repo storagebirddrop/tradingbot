@@ -131,6 +131,7 @@ curl -fsSL https://raw.githubusercontent.com/storagebirddrop/tradingbot/main/con
 **5. Pull the image and start:**
 
 ```bash
+export UID GID
 docker compose pull
 
 # Choose one profile:
@@ -138,6 +139,12 @@ docker compose --profile paper up -d     # paper trading (no API keys needed)
 docker compose --profile testnet up -d   # testnet
 docker compose --profile live up -d      # live
 ```
+
+> For local testing without a pushed image, build locally and use the `IMAGE` override:
+> ```bash
+> docker build -t phemex-bot:local .
+> export UID GID && IMAGE=phemex-bot:local docker compose --profile paper up
+> ```
 
 **Updating (Dockge or CLI):**
 
