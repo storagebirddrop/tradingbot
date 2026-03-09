@@ -93,6 +93,12 @@ def main():
         # Inject profile name so ExchangeBroker can select the right API keys
         config["profile"] = args.profile
 
+        # Ensure directories for state files exist
+        for key in ("state_file", "runtime_state_file", "fills_state_file", "log_file"):
+            path = config.get(key)
+            if path:
+                os.makedirs(os.path.dirname(path), exist_ok=True) if os.path.dirname(path) else None
+
         # Configure logging to profile-specific log file
         log_file = config.get("log_file", f"{args.profile}.log")
         configure_logging(log_file)
