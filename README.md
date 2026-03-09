@@ -179,16 +179,129 @@ pip install -r requirements.txt
 
 ---
 
+## Configuration
+
+### Per-profile requirements
+
+| | `local_paper` | `phemex_testnet` | `phemex_live` |
+|---|---|---|---|
+| `BOT_ENCRYPTION_KEY` | optional† | required | required |
+| `PHEMEX_API_KEY` / `PHEMEX_API_SECRET` | — | required | required |
+| `ENABLE_TESTNET_TRADING=YES` | — | required | — |
+| `ENABLE_LIVE_TRADING=YES` | — | — | required |
+| `GITHUB_REPOSITORY` | Docker only | Docker only | Docker only |
+
+† Set `BOT_ENV=development` in `.env` to skip the key requirement for local testing only.
+
+---
+
+### `local_paper` — paper trading
+
+No API keys needed. Uses live Phemex market data but never submits real orders.
+
+**Key config.json settings:**
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `starting_cash` | `50.0` | Simulated USDT balance |
+| `symbols` | 9 pairs | Edit to trade a subset |
+| `max_positions` | `2` | Max concurrent open trades |
+| `risk_per_trade` | `0.01` | 1% of portfolio per trade |
+| `stop_pct` | `0.02` | 2% stop-loss |
+| `daily_loss_limit_pct` | `3.0` | Halt entries if down 3% on the day |
+| `poll_seconds` | `20` | Loop cadence |
+| `dry_run` | `true` | Always true for paper |
+
+---
+
+### `phemex_testnet` — exchange testnet
+
+Connects to Phemex testnet. Submits real API calls with simulated testnet funds.
+
+**Required `.env` additions:**
+```bash
+PHEMEX_API_KEY=<testnet key>
+PHEMEX_API_SECRET=<testnet secret>
+BOT_ENCRYPTION_KEY=<generated key>
+ENABLE_TESTNET_TRADING=YES
+```
+
+> Get testnet API keys at [testnet.phemex.com](https://testnet.phemex.com) → API Management.
+
+**Key config.json settings:**
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `dry_run` | `true` | **Set to `false` to actually submit orders to testnet** |
+| `hard_stops` | `true` | Places exchange-side stop-market orders |
+| `max_positions` | `5` | Higher than live — testnet is for validation |
+| `risk_per_trade` | `0.03` | 3% of portfolio per trade |
+| `funding_filter.enabled` | `true` | Blocks longs when funding rate is elevated |
+| `daily_loss_limit_pct` | `3.0` | Kill switch threshold |
+
+---
+
+### `phemex_live` — live trading
+
+Connects to Phemex mainnet. Real money.
+
+**Required `.env` additions:**
+```bash
+PHEMEX_API_KEY=<live key>
+PHEMEX_API_SECRET=<live secret>
+BOT_ENCRYPTION_KEY=<generated key>
+ENABLE_LIVE_TRADING=YES
+```
+
+> ⚠️ The bot ships with `"dry_run": true` in the live profile. This means it connects to the live exchange, fetches real prices, and logs signals — but does **not** submit any orders. Set `"dry_run": false` in `config.json` only when you are ready to trade real funds.
+
+**Key config.json settings:**
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `dry_run` | `true` | **Must change to `false` to place real orders** |
+| `hard_stops` | `true` | Places exchange-side stop-market orders on Phemex |
+| `max_positions` | `2` | Conservative default — adjust to your risk tolerance |
+| `max_position_pct` | `0.15` | Max 15% of portfolio in a single position |
+| `max_total_exposure_pct` | `0.25` | Max 25% of portfolio across all open positions |
+| `risk_per_trade` | `0.01` | 1% of portfolio per trade |
+| `stop_pct` | `0.02` | 2% stop-loss |
+| `daily_loss_limit_pct` | `3.0` | Kill switch — entries halt, exits still fire |
+| `funding_filter.enabled` | `true` | Blocks longs when funding rate > 0.05% |
+| `risk_off_exits` | `true` | Force-exits all positions if regime flips to bear |
+
+**Before going live — checklist:**
+
+- [ ] Tested strategy on `local_paper` for at least one full week
+- [ ] Validated order flow end-to-end on `phemex_testnet` with `dry_run: false`
+- [ ] `BOT_ENCRYPTION_KEY` is backed up securely (losing it makes state files unreadable)
+- [ ] `max_positions`, `risk_per_trade`, and `max_total_exposure_pct` sized to your actual balance
+- [ ] Set `dry_run: false` in `config.json` — the only change needed to go from simulation to live
+
+---
+
 ## Environment Variables (`.env`)
 
 ```bash
-BOT_ENCRYPTION_KEY=<32-byte base64 key>   # required for exchange profiles
-PHEMEX_API_KEY=<key>                       # required for exchange profiles
-PHEMEX_API_SECRET=<secret>                 # required for exchange profiles
-ENABLE_TESTNET_TRADING=YES                 # required for testnet profile
-ENABLE_LIVE_TRADING=YES                    # required for live profile
-BOT_ENV=development                        # skip key requirement (local dev only)
-GITHUB_REPOSITORY=owner/tradingbot         # used by docker-compose image reference
+# Required for exchange profiles
+BOT_ENCRYPTION_KEY=<32-byte base64 key>
+PHEMEX_API_KEY=<key>
+PHEMEX_API_SECRET=<secret>
+
+# Safety interlocks — must be YES to enable real trading
+ENABLE_TESTNET_TRADING=NO
+ENABLE_LIVE_TRADING=NO
+
+# Docker only — image reference (must be lowercase)
+GITHUB_REPOSITORY=storagebirddrop/tradingbot
+
+# Local dev only — skips BOT_ENCRYPTION_KEY requirement
+# BOT_ENV=development
+```
+
+Generate an encryption key:
+```bash
+python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
 ```
 
 ---
