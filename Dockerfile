@@ -8,7 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PROFILE=local_paper
+    PROFILE=local_paper \
+    NUMBA_CACHE_DIR=/tmp/numba_cache
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -49,7 +50,7 @@ USER botuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 src/healthcheck.py --profile ${PROFILE:-local_paper} || exit 1
+    CMD python3 -m src.healthcheck --profile ${PROFILE:-local_paper} || exit 1
 
 # Default command (override --profile via docker-compose command:)
 CMD ["python3", "-m", "src.run_bot", "--profile", "local_paper"]
