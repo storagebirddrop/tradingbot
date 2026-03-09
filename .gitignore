@@ -112,3 +112,7 @@ secrets/
 credentials/
 .key_store/
 encryption_keys/
+# State files
+state/*.enc
+state/*.json
+!state/.gitkeep
