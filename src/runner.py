@@ -64,35 +64,23 @@ def save_runtime_state(path: str, state: dict) -> None:
 # Constants
 COOLDOWN_RESET_VALUE = -10**18  # Far past timestamp to reset cooldowns
 
-def _load_hmm_labels(symbols: list, exchange, cfg: dict,
-                     fallback_exchange=None) -> Dict[str, Optional[str]]:
+def _load_hmm_labels(symbols: list, exchange, cfg: dict) -> Dict[str, Optional[str]]:
     """Fetch 1d data per symbol and return HMM regime labels.  Fail-open (None)."""
     labels: Dict[str, Optional[str]] = {}
-    
-    # Validate required config keys
+
     required_keys = ["regime_timeframe", "limit_1d"]
     missing_keys = [key for key in required_keys if cfg.get(key) is None]
     if missing_keys:
         logger.error(f"HMM labels disabled: missing config keys {missing_keys}")
-        for sym in symbols:
-            labels[sym] = None
-        return labels
-    
+        return {sym: None for sym in symbols}
+
     for sym in symbols:
         try:
             df1d = fetch_ohlcv_df(exchange, sym, cfg["regime_timeframe"], cfg["limit_1d"])
             df1d = drop_incomplete_last_candle(df1d, cfg["regime_timeframe"])
             labels[sym] = regime_model.predict_regime(df1d)
-        except Exception as primary_err:
-            if fallback_exchange is not None:
-                try:
-                    df1d = fetch_ohlcv_df(fallback_exchange, sym, cfg["regime_timeframe"], cfg["limit_1d"])
-                    df1d = drop_incomplete_last_candle(df1d, cfg["regime_timeframe"])
-                    labels[sym] = regime_model.predict_regime(df1d)
-                    continue
-                except Exception:
-                    pass
-            logger.warning(f"HMM label refresh failed for {sym}: {primary_err}")
+        except Exception as e:
+            logger.warning(f"HMM label refresh failed for {sym}: {e}")
             labels[sym] = None
     return labels
 
@@ -103,9 +91,9 @@ def run_loop(cfg: dict, broker, market_exchange):
     hmm_loaded = regime_model.load_hmm()
     hmm_label_cache: Dict[str, Optional[str]] = {}
     hmm_label_day: str = ""
-    # HMM always needs live public OHLCV — testnet exchange lacks 1d data
-    _hmm_fallback = (ccxt.phemex({"enableRateLimit": True})
-                     if cfg.get("exchange_env") == "testnet" else None)
+    # HMM always uses Binance for 1d data — matches training source and avoids
+    # Phemex spot 1d endpoint issues (both live and testnet).
+    _hmm_exchange = ccxt.binance({"enableRateLimit": True})
     if signal_filter.is_enabled():
         logger.info("Signal filter ENABLED (LightGBM)")
     tf_sec = timeframe_seconds(cfg["signal_timeframe"])
@@ -190,8 +178,7 @@ def run_loop(cfg: dict, broker, market_exchange):
 
         # Refresh HMM regime labels once per UTC day (or on first loop)
         if hmm_loaded and (hmm_label_day != current_day):
-            hmm_label_cache = _load_hmm_labels(cfg["symbols"], market_exchange, cfg,
-                                                fallback_exchange=_hmm_fallback)
+            hmm_label_cache = _load_hmm_labels(cfg["symbols"], _hmm_exchange, cfg)
             hmm_label_day = current_day
             logger.info(f"HMM_LABELS refreshed: { {s: hmm_label_cache.get(s) for s in cfg['symbols']} }")
 
