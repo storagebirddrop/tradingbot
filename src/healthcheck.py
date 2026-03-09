@@ -23,18 +23,23 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-
-def _load_json(path: str) -> Optional[Dict[str, Any]]:
-    if not path or not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
+from .brokers import load_json
 
 
 def _load_profile(config_path: str, profile: str) -> Dict[str, Any]:
+    """
+    Load and return the named profile from a JSON configuration file.
+    
+    Parameters:
+        config_path (str): Path to the JSON configuration file containing a "profiles" mapping.
+        profile (str): Name of the profile to retrieve.
+    
+    Returns:
+        Dict[str, Any]: The profile dictionary for the requested profile.
+    
+    Raises:
+        SystemExit: If the requested profile is not found in the configuration.
+    """
     with open(config_path, "r") as f:
         cfg = json.load(f)
     prof = (cfg.get("profiles") or {}).get(profile)
@@ -106,6 +111,14 @@ def _last_fill_time_from_fills_csv(path: str) -> Optional[datetime]:
 
 
 def main():
+    """
+    Run the bot health check: inspect config/profile, runtime and state files, logs, and report health with an appropriate exit code.
+    
+    Reads the selected profile from the provided config file, loads state, runtime, and optional fills state/logs, and evaluates conditions including equity log freshness, fills recency (exchange mode), kill switches (daily and API), hard-stop completeness for open positions, and realized PnL aggregation. Prints a concise status summary, lists findings (if any), and exits with:
+    - 0 = OK
+    - 1 = WARN (stale/missing logs, active kill switches, missing fills, missing hard-stop info)
+    - 2 = ERROR (missing or unreadable required state such as the equity log)
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.json", help="Path to config.json")
     ap.add_argument("--profile", required=True, choices=["local_paper", "phemex_testnet", "phemex_live"])
@@ -126,8 +139,8 @@ def main():
     fills_log = prof.get("fills_log")
     fills_state_file = prof.get("fills_state_file")
 
-    state = _load_json(state_file) or {}
-    rt = _load_json(runtime_state_file) or {}
+    state = load_json(state_file) or {}
+    rt = load_json(runtime_state_file) or {}
 
     exit_code = 0
     problems = []
@@ -173,7 +186,7 @@ def main():
             problems.append("No fills observed yet (fills_log missing/empty) — OK if no trades placed.")
             exit_code = max(exit_code, 1)
 
-        fills_state = _load_json(fills_state_file) or {}
+        fills_state = load_json(fills_state_file) or {}
         by_symbol = (fills_state.get("by_symbol") or {}) if isinstance(fills_state, dict) else {}
         try:
             realized_total = sum(float(v.get("realized_pnl") or 0.0) for v in by_symbol.values())
