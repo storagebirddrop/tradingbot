@@ -116,3 +116,7 @@ encryption_keys/
 state/*.enc
 state/*.json
 !state/.gitkeep
+
+# Local notes / scratch files
+research/chat_progress_note.md
+yfinance.cache
