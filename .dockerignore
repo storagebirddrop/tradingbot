@@ -11,57 +11,65 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
 lib/
 lib64/
-parts/
-sdist/
-var/
 wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual environment
 .venv/
 venv/
 ENV/
-env/
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Logs (will be mounted as volume)
-*.log
-*.log.*
-
-# State files (will be mounted as volume)
-*_state.json*
-*_runtime_state.json*
-
-# Environment files
+# Secrets and environment
 .env
-.env.local
-.env.*.local
+.env.*
 
-# Documentation
-*.md
-docs/
+# State files (mounted as volumes at runtime)
+state/
+*_state.json
+*_state.json.enc
+*_runtime_state.json
+*_fills_state.json
+*_fills_state.json.enc
+*.enc
 
-# Installation scripts
-install.sh
+# Data files (large CSVs — not needed in image)
+data/
+*.csv
 
-# Docker files
+# Logs (mounted as volume at runtime)
+logs/
+*.log
+
+# Research / dev-only scripts
+research/
+strategies/
+tests/
+archive/
+results/
+
+# Misc runtime artifacts
+yfinance.cache
+*.cache
+
+# Docker meta (not needed in image)
 Dockerfile
 docker-compose.yml
 .dockerignore
+
+# Docs / markdown
+*.md
+docs/

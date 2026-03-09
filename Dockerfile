@@ -32,13 +32,14 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install -r requirements.txt
 
-# Copy application code
+# Copy application code and required runtime assets
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY models/ ./models/
 COPY config.json .
 
-# Create data and logs directories
-RUN mkdir -p /app/data /app/logs
+# Create persistent directories (state/ for encrypted state files)
+RUN mkdir -p /app/data /app/logs /app/state
 
 # Change ownership to non-root user
 RUN chown -R botuser:botuser /app
@@ -50,5 +51,5 @@ USER botuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python3 src/healthcheck.py --profile ${PROFILE:-local_paper} || exit 1
 
-# Default command
-CMD ["python3", "src/run_bot.py", "--profile", "local_paper"]
+# Default command (override --profile via docker-compose command:)
+CMD ["python3", "-m", "src.run_bot", "--profile", "local_paper"]

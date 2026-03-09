@@ -3,25 +3,28 @@ version: '3.8'
 services:
   # Paper Trading Bot
   bot-paper:
-    build: .
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
     container_name: phemex-bot-paper
     restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       - PROFILE=local_paper
       - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
     volumes:
+      - ./config.json:/app/config.json:ro
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config.json:/app/config.json
-    command: python3 src/run_bot.py --profile local_paper
+      - ./state:/app/state
+    command: python3 -m src.run_bot --profile local_paper
     profiles:
       - paper
 
   # Testnet Trading Bot
   bot-testnet:
-    build: .
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
     container_name: phemex-bot-testnet
     restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       - PROFILE=phemex_testnet
       - PHEMEX_API_KEY=${PHEMEX_API_KEY}
@@ -29,18 +32,20 @@ services:
       - ENABLE_TESTNET_TRADING=${ENABLE_TESTNET_TRADING:-NO}
       - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
     volumes:
+      - ./config.json:/app/config.json:ro
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config.json:/app/config.json
-    command: python3 src/run_bot.py --profile phemex_testnet
+      - ./state:/app/state
+    command: python3 -m src.run_bot --profile phemex_testnet
     profiles:
       - testnet
 
   # Live Trading Bot
   bot-live:
-    build: .
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
     container_name: phemex-bot-live
     restart: unless-stopped
+    stop_grace_period: 60s
     environment:
       - PROFILE=phemex_live
       - PHEMEX_API_KEY=${PHEMEX_API_KEY}
@@ -48,10 +53,11 @@ services:
       - ENABLE_LIVE_TRADING=${ENABLE_LIVE_TRADING:-NO}
       - BOT_ENCRYPTION_KEY=${BOT_ENCRYPTION_KEY:-}
     volumes:
+      - ./config.json:/app/config.json:ro
       - ./data:/app/data
       - ./logs:/app/logs
-      - ./config.json:/app/config.json
-    command: python3 src/run_bot.py --profile phemex_live
+      - ./state:/app/state
+    command: python3 -m src.run_bot --profile phemex_live
     profiles:
       - live
 
