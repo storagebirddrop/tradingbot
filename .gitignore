@@ -121,3 +121,9 @@ state/*.json
 # Local notes / scratch files
 research/chat_progress_note.md
 yfinance.cache
+
+# Claude-specific files
+CLAUDE.md
+
+# Temporary pip output files
+=1.0.0
