@@ -88,12 +88,15 @@ tradingbot/
 
 **2. Set directory permissions:**
 
-The container runs as a non-root user (`botuser`). The `state/` and `logs/` directories
-must be writable by the container process:
+The container runs as your host user (uid/gid injected via `UID`/`GID` env vars, defaulting to 1000).
+Export them before running so Docker Compose picks them up:
 
 ```bash
-chmod 777 state logs
+export UID GID
+chmod 755 state logs
 ```
+
+> On most Linux systems `UID` is already exported. If you see permission errors, verify with `id -u`.
 
 **3. Create `.env`:**
 
@@ -128,6 +131,7 @@ curl -fsSL https://raw.githubusercontent.com/storagebirddrop/tradingbot/main/con
 **5. Pull the image and start:**
 
 ```bash
+export UID GID
 docker compose pull
 
 # Choose one profile:
@@ -135,6 +139,12 @@ docker compose --profile paper up -d     # paper trading (no API keys needed)
 docker compose --profile testnet up -d   # testnet
 docker compose --profile live up -d      # live
 ```
+
+> For local testing without a pushed image, build locally and use the `IMAGE` override:
+> ```bash
+> docker build -t phemex-bot:local .
+> export UID GID && IMAGE=phemex-bot:local docker compose --profile paper up
+> ```
 
 **Updating (Dockge or CLI):**
 
@@ -308,30 +318,78 @@ python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64e
 
 ## Monitoring
 
+### Local Paper Trading
 ```bash
 # Health check
 python3 -m src.healthcheck --profile local_paper
 
 # Equity curve
-python3 scripts/equity_report.py --equity-log paper_equity.csv --starting 50
+python3 scripts/equity_report.py --equity-log logs/paper_equity.csv --starting 50
 python3 scripts/plot_equity.py
 
 # Trade summary
-python3 scripts/trades_report.py --trades-log paper_trades.csv
-
-# Reconcile fills vs orders
-python3 scripts/reconcile.py
+python3 scripts/trades_report.py --trades-log logs/paper_trades.csv
 
 # Live log
 tail -f local_paper.log
 grep -E "FUNDING_RATE|SIGNAL_FILTERED|HMM_LABELS|ENTRY|EXIT" local_paper.log
 ```
 
-For Docker, prefix with `docker compose exec bot-paper`:
+### Phemex Testnet
 ```bash
-docker compose exec bot-paper python3 -m src.healthcheck --profile local_paper
-docker compose logs -f bot-paper
+# Health check
+python3 -m src.healthcheck --profile phemex_testnet
+
+# Equity curve
+python3 scripts/equity_report.py --equity-log logs/testnet_equity.csv --starting 10000
+
+# Trade analysis (order log)
+python3 scripts/trades_report.py --trades-log logs/testnet_orders.csv
+
+# Fills analysis (after actual trades)
+python3 scripts/trades_report.py --fills-log logs/testnet_fills.csv
+
+# Live log
+tail -f testnet_bot.log
+grep -E "FUNDING_RATE|SIGNAL_FILTERED|HMM_LABELS|ENTRY|EXIT" testnet_bot.log
 ```
+
+### Phemex Live
+```bash
+# Health check
+python3 -m src.healthcheck --profile phemex_live
+
+# Equity curve
+python3 scripts/equity_report.py --equity-log logs/live_equity.csv --starting <your_balance>
+
+# Trade analysis (order log)
+python3 scripts/trades_report.py --trades-log logs/live_orders.csv
+
+# Fills analysis (after actual trades)
+python3 scripts/trades_report.py --fills-log logs/live_fills.csv
+
+# Live log
+tail -f live_bot.log
+grep -E "FUNDING_RATE|SIGNAL_FILTERED|HMM_LABELS|ENTRY|EXIT" live_bot.log
+```
+
+### Docker Monitoring
+For Docker deployments, prefix commands with `docker compose exec bot-<profile>`:
+```bash
+# Example for testnet
+docker compose exec bot-testnet python3 -m src.healthcheck --profile phemex_testnet
+docker compose logs -f bot-testnet
+
+# Example for live
+docker compose exec bot-live python3 -m src.healthcheck --profile phemex_live
+docker compose logs -f bot-live
+```
+
+### Notes
+- **Paper trading**: Uses `paper_trades.csv` with direct PnL calculations
+- **Exchange profiles**: Use order logs (`*_orders.csv`) and fills logs (`*_fills.csv`)
+- **Fills analysis**: Only available after actual trades occur
+- **File paths**: May vary by server setup - check healthcheck output for actual paths
 
 ---
 
@@ -374,6 +432,38 @@ python3 research/regime_strategy_analysis.py \
   --symbols ETH SOL TRX ADA LTC BAT RUNE VTHO \
   --hmm models/regime_hmm.pkl \
   --hmm-states models/regime_hmm_states.json
+```
+
+---
+
+## Troubleshooting
+
+### Common Installation Issues
+
+#### `hmmlearn` Package Not Found
+
+If you encounter `ModuleNotFoundError: No module named 'hmmlearn'` after installing requirements.txt:
+
+```bash
+# Verify virtual environment is activated
+source .venv/bin/activate
+which python3  # Should show: /path/to/tradingbot/.venv/bin/python3
+
+# Install hmmlearn explicitly
+pip install hmmlearn>=0.3.0
+
+# Verify installation
+pip list | grep hmmlearn
+python3 -c "import hmmlearn; print('hmmlearn version:', hmmlearn.__version__)"
+```
+
+**Why this happens**: `hmmlearn` has Cython extensions that may fail to compile during the initial `pip install -r requirements.txt` due to missing build tools or dependency order issues. Installing it explicitly resolves these issues.
+
+**Prevention**: For reliable fresh installs:
+```bash
+# Install core dependencies first
+pip install numpy scipy scikit-learn
+pip install -r requirements.txt --verbose
 ```
 
 ---
