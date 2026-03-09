@@ -66,24 +66,74 @@ Exchange profiles require `BOT_ENCRYPTION_KEY` in `.env` for state file encrypti
 ### Option A — Docker (Dockge or CLI)
 
 The image is built and pushed to `ghcr.io` automatically on every push to `main` via GitHub Actions.
-The host only needs `docker-compose.yml`, `.env`, and `config.json` — no source code.
+The host needs only `docker-compose.yml`, `.env`, and `config.json` — no source code.
 
-**First-time setup:**
+**1. Create the directory structure on the host:**
 
 ```bash
-# Create persistent directories
-mkdir -p state data logs
+mkdir -p tradingbot/{state,data,logs}
+cd tradingbot
+```
 
-# Set up environment
-cp .env.template .env
-# Edit .env: BOT_ENCRYPTION_KEY, PHEMEX_API_KEY, PHEMEX_API_SECRET
-# Also set: GITHUB_REPOSITORY=your-github-username/tradingbot
+The expected layout:
+```
+tradingbot/
+├── docker-compose.yml   # from the repo
+├── config.json          # from the repo
+├── .env                 # your secrets (never committed)
+├── state/               # encrypted position/runtime state (written by bot)
+├── data/                # optional: OHLCV CSVs for research scripts
+└── logs/                # bot log files (written by bot)
+```
 
-# Download config (or copy from repo)
-# Then start one profile:
-docker compose --profile paper up -d
-docker compose --profile testnet up -d
-docker compose --profile live up -d
+**2. Set directory permissions:**
+
+The container runs as a non-root user (`botuser`). The `state/` and `logs/` directories
+must be writable by the container process:
+
+```bash
+chmod 777 state logs
+```
+
+**3. Create `.env`:**
+
+```bash
+# Generate an encryption key
+python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
+
+cat > .env <<'EOF'
+# Image reference (must be lowercase)
+GITHUB_REPOSITORY=storagebirddrop/tradingbot
+
+# Encryption key — required for all profiles
+BOT_ENCRYPTION_KEY=<paste generated key>
+
+# Exchange API keys — required for testnet/live profiles
+PHEMEX_API_KEY=
+PHEMEX_API_SECRET=
+
+# Safety interlocks — must be set to YES to enable real trading
+ENABLE_TESTNET_TRADING=NO
+ENABLE_LIVE_TRADING=NO
+EOF
+```
+
+**4. Download `docker-compose.yml` and `config.json` from the repo:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/storagebirddrop/tradingbot/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/storagebirddrop/tradingbot/main/config.json -o config.json
+```
+
+**5. Pull the image and start:**
+
+```bash
+docker compose pull
+
+# Choose one profile:
+docker compose --profile paper up -d     # paper trading (no API keys needed)
+docker compose --profile testnet up -d   # testnet
+docker compose --profile live up -d      # live
 ```
 
 **Updating (Dockge or CLI):**
@@ -95,26 +145,23 @@ docker compose pull && docker compose up -d
 The bot handles `SIGTERM` gracefully: it completes the current polling iteration (≤ 30 s),
 persists all state to `./state/`, then exits. Active positions survive restarts.
 
-**Generate an encryption key:**
-
-```bash
-python3 -c "import base64, os; print('BOT_ENCRYPTION_KEY=' + base64.urlsafe_b64encode(os.urandom(32)).decode())"
-```
-
 ---
 
 ### Option B — VM / LXC (bare-metal)
 
 ```bash
 # Clone and set up
-git clone https://github.com/your-github-username/tradingbot.git
+git clone https://github.com/storagebirddrop/tradingbot.git
 cd tradingbot
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.template .env   # fill in BOT_ENCRYPTION_KEY (or set BOT_ENV=development for local testing)
 
-# Create state directory
+# Create runtime directories
 mkdir -p state
+
+# Configure environment
+cp .env.template .env   # fill in BOT_ENCRYPTION_KEY
+                        # set BOT_ENV=development to skip key requirement for local testing
 
 # Run
 python3 -m src.run_bot --profile local_paper      # paper trading
@@ -127,6 +174,7 @@ python3 -m src.run_bot --profile phemex_live      # live
 ```bash
 git pull
 pip install -r requirements.txt
+# Restart the bot process
 ```
 
 ---
