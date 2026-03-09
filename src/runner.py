@@ -255,8 +255,8 @@ def run_loop(cfg: dict, broker, market_exchange):
             if not pinned and hmm_label and hmm_label in hmm_regime_strategy:
                 hmm_override = hmm_regime_strategy[hmm_label]
                 if hmm_override != sym_strategy:
-                    logger.info(f"HMM_OVERRIDE {sym} regime={hmm_label} "
-                                f"{sym_strategy} -> {hmm_override}")
+                    logger.debug(f"HMM_OVERRIDE {sym} regime={hmm_label} "
+                                 f"{sym_strategy} -> {hmm_override}")
                     sym_strategy = hmm_override
             if hmm_label:
                 logger.debug(f"HMM_REGIME {sym} pinned={pinned} regime={hmm_label} "
@@ -273,6 +273,8 @@ def run_loop(cfg: dict, broker, market_exchange):
                 continue
             if current_open > last_tf_open[sym]:
                 last_tf_open[sym] = current_open
+                if hmm_label:
+                    logger.info(f"HMM_REGIME {sym} pinned={pinned} regime={hmm_label} strategy={sym_strategy}")
                 candle_idx = int(current_open // tf_sec)
                 px = price_map.get(sym)
                 if px is None:
