@@ -23,15 +23,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-
-def _load_json(path: str) -> Optional[Dict[str, Any]]:
-    if not path or not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
+from .brokers import load_json
 
 
 def _load_profile(config_path: str, profile: str) -> Dict[str, Any]:
@@ -126,8 +118,8 @@ def main():
     fills_log = prof.get("fills_log")
     fills_state_file = prof.get("fills_state_file")
 
-    state = _load_json(state_file) or {}
-    rt = _load_json(runtime_state_file) or {}
+    state = load_json(state_file) or {}
+    rt = load_json(runtime_state_file) or {}
 
     exit_code = 0
     problems = []
@@ -173,7 +165,7 @@ def main():
             problems.append("No fills observed yet (fills_log missing/empty) — OK if no trades placed.")
             exit_code = max(exit_code, 1)
 
-        fills_state = _load_json(fills_state_file) or {}
+        fills_state = load_json(fills_state_file) or {}
         by_symbol = (fills_state.get("by_symbol") or {}) if isinstance(fills_state, dict) else {}
         try:
             realized_total = sum(float(v.get("realized_pnl") or 0.0) for v in by_symbol.values())
