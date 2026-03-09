@@ -388,6 +388,38 @@ python3 research/regime_strategy_analysis.py \
 
 ---
 
+## Troubleshooting
+
+### Common Installation Issues
+
+#### `hmmlearn` Package Not Found
+
+If you encounter `ModuleNotFoundError: No module named 'hmmlearn'` after installing requirements.txt:
+
+```bash
+# Verify virtual environment is activated
+source .venv/bin/activate
+which python3  # Should show: /path/to/tradingbot/.venv/bin/python3
+
+# Install hmmlearn explicitly
+pip install hmmlearn>=0.3.0
+
+# Verify installation
+pip list | grep hmmlearn
+python3 -c "import hmmlearn; print('hmmlearn version:', hmmlearn.__version__)"
+```
+
+**Why this happens**: `hmmlearn` has Cython extensions that may fail to compile during the initial `pip install -r requirements.txt` due to missing build tools or dependency order issues. Installing it explicitly resolves these issues.
+
+**Prevention**: For reliable fresh installs:
+```bash
+# Install core dependencies first
+pip install numpy scipy scikit-learn
+pip install -r requirements.txt --verbose
+```
+
+---
+
 ## Security
 
 - State files (`state/*_state.json`) are Fernet-encrypted at rest; written atomically via `.tmp` + `os.replace`
