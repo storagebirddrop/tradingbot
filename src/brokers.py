@@ -559,9 +559,16 @@ class ExchangeBroker(BaseBroker):
 
     def fetch_funding_rate(self, symbol: str) -> Optional[float]:
         """Fetch current perpetual funding rate. Returns None on any error (fail-open)."""
+        # Phemex requires the perpetual swap symbol (BASE/USDT:USDT), not the spot symbol
+        perp_symbol = symbol if ":" in symbol else f"{symbol}:USDT"
         try:
-            fr = self.ex.fetch_funding_rate(symbol)
+            fr = self.ex.fetch_funding_rate(perp_symbol)
+            # ccxt normalises to fundingRate, but Phemex populates nextFundingRate instead
             rate = fr.get("fundingRate")
+            if rate is None:
+                rate = fr.get("nextFundingRate")
+            if rate is None:
+                rate = (fr.get("info") or {}).get("fundingRateRr")
             return float(rate) if rate is not None else None
         except Exception:
             return None
@@ -657,8 +664,7 @@ class ExchangeBroker(BaseBroker):
         try:
             eq = self.equity_usdt(price_map)
         except Exception:
-            self.record_api_error("exchange.fetch_balance")
-            return
+            return  # equity fetch is informational; don't count against API error threshold
         realized, unreal = self._pnl_totals(price_map)
         pos_list = "|".join(sorted(self._positions.keys()))
         append_csv(self.cfg["equity_log"], [now_iso(), round(eq,10), round(realized,10), round(unreal,10), pos_list, self.cfg.get("dry_run", True)])
