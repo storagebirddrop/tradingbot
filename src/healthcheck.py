@@ -27,6 +27,19 @@ from .brokers import load_json
 
 
 def _load_profile(config_path: str, profile: str) -> Dict[str, Any]:
+    """
+    Load and return the named profile from a JSON configuration file.
+    
+    Parameters:
+        config_path (str): Path to the JSON configuration file containing a "profiles" mapping.
+        profile (str): Name of the profile to retrieve.
+    
+    Returns:
+        Dict[str, Any]: The profile dictionary for the requested profile.
+    
+    Raises:
+        SystemExit: If the requested profile is not found in the configuration.
+    """
     with open(config_path, "r") as f:
         cfg = json.load(f)
     prof = (cfg.get("profiles") or {}).get(profile)
@@ -98,6 +111,14 @@ def _last_fill_time_from_fills_csv(path: str) -> Optional[datetime]:
 
 
 def main():
+    """
+    Run the bot health check: inspect config/profile, runtime and state files, logs, and report health with an appropriate exit code.
+    
+    Reads the selected profile from the provided config file, loads state, runtime, and optional fills state/logs, and evaluates conditions including equity log freshness, fills recency (exchange mode), kill switches (daily and API), hard-stop completeness for open positions, and realized PnL aggregation. Prints a concise status summary, lists findings (if any), and exits with:
+    - 0 = OK
+    - 1 = WARN (stale/missing logs, active kill switches, missing fills, missing hard-stop info)
+    - 2 = ERROR (missing or unreadable required state such as the equity log)
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.json", help="Path to config.json")
     ap.add_argument("--profile", required=True, choices=["local_paper", "phemex_testnet", "phemex_live"])
